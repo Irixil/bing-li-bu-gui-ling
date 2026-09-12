@@ -136,3 +136,13 @@ curl http://127.0.0.1:18768/api/media/capabilities
 | `.dz/`、`PROJECT.md` | AI 接管记忆；本次发布协作需求不代表媒体实现或验收通过 |
 
 项目代码暂未授予通用开源许可证；团队可以从本仓库协作开发。公开病例改编资料的 CC BY 4.0 许可单独适用，不应混为整个仓库的许可证。
+
+## 比赛演示一键启动
+
+如果只需要本机离线演示（文字 + 媒体 Mock），可直接运行：
+
+```bash
+.venv/bin/python -m scripts.start_demo
+```
+
+它使用 `MODEL_PROVIDER=mock`、`MEDIA_RECOGNITION_PROVIDER=mock` 和有限的本地媒体资源边界；不会调用外部 AI。正式联调仍建议复制 `.env.example` 并显式配置。
