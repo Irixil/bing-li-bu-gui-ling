@@ -161,13 +161,13 @@ link_status:        not_linked | pending | linked | link_failed
 
 ### `POST /api/media/{media_id}/link` 恢复 Event 关联
 
-当前请求可为空对象，也可带可选的 `actor_name` 和 `expected_version`：
+当前请求必须带正整数 `expected_version`，也可带可选的 `actor_name`：
 
 ```json
 {"actor_name":"老人","expected_version":6}
 ```
 
-请求必须带新的 `Idempotency-Key`；`expected_version` 如果提供必须是正整数，版本过期返回 `409 stale_version`。该接口只复用已持久化的成功初稿，不再次调用识别；首次创建 Event 返回 `201`，已有链接或重复恢复返回 `200`。识别未成功、危险扫描未完成或全文超过 10000 字符时不会创建空 Event，并保留媒体和可恢复状态。
+请求必须带新的 `Idempotency-Key`；版本过期返回 `409 stale_version`。该接口只复用已持久化的成功初稿，不再次调用识别；首次创建 Event 返回 `201`，已有链接或重复恢复返回 `200`。识别未成功、危险扫描未完成或全文超过 10000 字符时不会创建空 Event，并保留媒体和可恢复状态。
 
 媒体常见错误为 `{ok:false,error:"稳定错误码"}`，包括 `media_limits_not_configured`、`request_too_large`、`unsupported_format`、`media_not_found`、`upload_not_found`、`upload_incomplete`、`idempotency_key_payload_mismatch`、`stale_version`、`provider_not_configured`、`provider_timeout`、`invalid_range`、`media_backend_unavailable` 和 `media_request_failed`。不要向用户展示路径、供应商原始正文或内部异常。
 

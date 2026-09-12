@@ -34,7 +34,7 @@ JSON 写请求带 `Content-Type: application/json` 和 `X-Session-Token`；创�
 
 前端展示状态使用 `save_status`、`recognition_status` 和 `link_status`，不要沿用早期草案的 `upload_status`。如果详情中的 `recognition.is_mock === true`，必须清楚显示“离线 Mock 演示模式”；它不能标成真实识别。识别失败时继续展示原件入口和错误状态，不能让该条媒体从列表消失。
 
-启动媒体流程前可先读取 `/api/media/capabilities`。只有 `enabled: true` 才展示上传入口；若能力返回 `disabled_reason: "media_limits_not_configured"`，显示“当前实例未配置媒体资源保护边界”，不要自行填入默认值。可用 `/api/media/{media_id}/link` 复用已经保存的成功初稿恢复关联，不能因此重新调用识别；请求可带当前 `expected_version`。默认服务已经组装媒体后端；若返回 `media_backend_unavailable`，应显示明确错误，不要静默切换 Mock。
+启动媒体流程前可先读取 `/api/media/capabilities`。只有 `enabled: true` 才展示上传入口；若能力返回 `disabled_reason: "media_limits_not_configured"`，显示“当前实例未配置媒体资源保护边界”，不要自行填入默认值。可用 `/api/media/{media_id}/link` 复用已经保存的成功初稿恢复关联，不能因此重新调用识别；请求必须带当前 `expected_version`。默认服务已经组装媒体后端；若返回 `media_backend_unavailable`，应显示明确错误，不要静默切换 Mock。
 
 ## 前端验收
 

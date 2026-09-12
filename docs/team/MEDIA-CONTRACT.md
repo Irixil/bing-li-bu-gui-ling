@@ -288,7 +288,7 @@ Event 创建使用上传时保存的 `actor_name` 和 `occurred_time`；`recorde
 {"actor_name":"老人"}
 ```
 
-请求带新的 `Idempotency-Key`，并可带正整数 `expected_version`。提供时后端校验媒体当前版本；版本过期返回 `409 stale_version`。首次关联成功返回 `201 {ok:true, linked:true, event_created:true, media, event}`；相同媒体已经关联时返回现有 Event，状态为 `200`。该入口复用已经保存的成功初稿，不再次调用识别。超过 10000 字符返回可恢复的待关联状态，媒体保持 `pending` 且全文可查；本轮不擅自增加自动分段或截取功能。
+请求带新的 `Idempotency-Key` 和正整数 `expected_version`；后端校验媒体当前版本，版本过期返回 `409 stale_version`。首次关联成功返回 `201 {ok:true, linked:true, event_created:true, media, event}`；相同媒体已经关联时返回现有 Event，状态为 `200`。该入口复用已经保存的成功初稿，不再次调用识别。超过 10000 字符返回可恢复的待关联状态，媒体保持 `pending` 且全文可查；本轮不擅自增加自动分段或截取功能。
 
 数据库必须约束一个媒体只能生成一个初始 Event。迟到识别结果不能覆盖更晚尝试、已保存初稿、Event 或人工修订。
 
