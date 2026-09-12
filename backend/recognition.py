@@ -19,8 +19,11 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import secrets
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -217,10 +220,56 @@ def _run_json_command(command: list[str], timeout: float) -> Mapping[str, Any]:
     return payload
 
 
+def _recognize_dashscope_audio(path: Path, mime: str, attempt_id: str, *, model_override: str | None = None) -> RecognitionResult:
+    """Call DashScope's OpenAI-compatible audio transcription endpoint.
+
+    The file is already persisted locally. This provider uploads it only when
+    explicitly selected with MEDIA_ASR_PROVIDER=dashscope; it never becomes a
+    silent fallback.
+    """
+    api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
+    if not api_key:
+        raise RecognitionError("provider_not_configured", "未配置 DASHSCOPE_API_KEY。", False)
+    model = (model_override or os.getenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash")).strip() or "qwen3-asr-flash"
+    base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+    timeout = float(os.getenv("MEDIA_ASR_TIMEOUT_SECONDS", os.getenv("MEDIA_RECOGNITION_TIMEOUT_SECONDS", "180")))
+    boundary = "----codex-" + secrets.token_hex(12)
+    data = path.read_bytes()
+    parts: list[bytes] = []
+    def field(name: str, value: str) -> None:
+        parts.extend([f"--{boundary}\r\n".encode(), f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode(), value.encode(), b"\r\n"])
+    field("model", model)
+    parts.extend([f"--{boundary}\r\n".encode(), f'Content-Disposition: form-data; name="file"; filename="{path.name}"\r\n'.encode(), f"Content-Type: {mime}\r\n\r\n".encode(), data, b"\r\n", f"--{boundary}--\r\n".encode()])
+    req = urllib.request.Request(
+        base_url + "/audio/transcriptions",
+        data=b"".join(parts),
+        headers={"Authorization": "Bearer " + api_key, "Content-Type": f"multipart/form-data; boundary={boundary}", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        code = "provider_auth_failed" if exc.code in {401, 403} else "provider_rate_limited" if exc.code == 429 else "provider_unavailable"
+        raise RecognitionError(code, "云端 ASR 请求失败。", code in {"provider_rate_limited", "provider_unavailable"}) from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RecognitionError("provider_timeout" if isinstance(exc, TimeoutError) else "provider_unavailable", "云端 ASR 暂时不可用，可稍后重试。", True) from exc
+    text = payload.get("text") if isinstance(payload, dict) else None
+    if not isinstance(text, str) or not text.strip():
+        raise RecognitionError("invalid_provider_response", "云端 ASR 返回格式无效。", True)
+    return RecognitionResult(text=text.strip(), provider="dashscope", model=model, is_mock=False)
+
+
 def _recognize_audio(path: Path, mime: str, attempt_id: str) -> RecognitionResult:
     provider = _provider_name("audio")
     if provider in {"mock", "test"}:
         raise RecognitionError("mock_provider_not_allowed", "识别模块不在生产调用中自动使用 Mock。", False)
+    if provider in {"dashscope", "aliyun", "aliyun-asr", "qwen", "qwen3-asr-flash", "paraformer"}:
+        # The model is explicit for the comparison run.  In particular,
+        # selecting paraformer must not mutate process-wide environment state
+        # or accidentally inherit a previously selected Qwen model.
+        model_override = "paraformer-v2" if provider == "paraformer" else None
+        return _recognize_dashscope_audio(path, mime, attempt_id, model_override=model_override)
     if provider not in {"local", "whisper", "whisper-local"}:
         raise RecognitionError("provider_not_configured", "当前未配置支持的 ASR 服务。", False)
     python_bin = os.getenv("WHISPER_PYTHON", sys.executable)

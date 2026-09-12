@@ -148,3 +148,46 @@ def test_timeout_is_retryable(tmp_path, monkeypatch):
     configure_audio(monkeypatch, runner, MEDIA_ASR_TIMEOUT_SECONDS="0.03")
     error = assert_error(lambda: recognize_file(path, kind="audio", content_type="audio/wav", attempt_id="x"), "provider_timeout")
     assert error.retryable is True
+
+
+def test_dashscope_provider_uses_explicit_qwen_model_without_local_fallback(tmp_path, monkeypatch):
+    from unittest.mock import patch
+
+    path = make_wav_file(tmp_path)
+    monkeypatch.setenv("MEDIA_ASR_PROVIDER", "dashscope")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
+    monkeypatch.setenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash")
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self): return '{"text":"妈妈今天头晕"}'.encode()
+
+    with patch("backend.recognition.urllib.request.urlopen", return_value=Response()) as call:
+        result = recognize_file(path, kind="audio", content_type="audio/wav", attempt_id="cloud-1")
+    assert result["provider"] == "dashscope"
+    assert result["model"] == "qwen3-asr-flash"
+    assert result["text"] == "妈妈今天头晕"
+    request = call.call_args.args[0]
+    assert request.full_url.endswith("/audio/transcriptions")
+    assert b"qwen3-asr-flash" in request.data
+
+
+def test_paraformer_selection_does_not_inherit_qwen_model(tmp_path, monkeypatch):
+    from unittest.mock import patch
+
+    path = make_wav_file(tmp_path)
+    monkeypatch.setenv("MEDIA_ASR_PROVIDER", "paraformer")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
+    monkeypatch.setenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash")
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self): return '{"text":"转写结果"}'.encode()
+
+    with patch("backend.recognition.urllib.request.urlopen", return_value=Response()) as call:
+        result = recognize_file(path, kind="audio", content_type="audio/wav", attempt_id="cloud-2")
+    assert result["model"] == "paraformer-v2"
+    assert b"paraformer-v2" in call.call_args.args[0].data
+    assert b"qwen3-asr-flash" not in call.call_args.args[0].data
