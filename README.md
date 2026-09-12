@@ -142,7 +142,7 @@ curl http://127.0.0.1:18768/api/media/capabilities
 如果只需要本机离线演示（文字 + 媒体 Mock），可直接运行：
 
 ```bash
-.venv/bin/python -m scripts.start_demo
+.venv312/bin/python -m scripts.start_demo
 ```
 
 它使用 `MODEL_PROVIDER=mock`、`MEDIA_RECOGNITION_PROVIDER=mock` 和有限的本地媒体资源边界；不会调用外部 AI。正式联调仍建议复制 `.env.example` 并显式配置。
