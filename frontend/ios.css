@@ -1,0 +1,67 @@
+/* Device preview and safe areas. Interior brand colors remain in styles.css. */
+.app-shell {
+  max-width: 390px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+.app-shell > main {
+  width: 100%;
+  flex: 1 0 auto;
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+}
+.topbar {
+  height: auto;
+  min-height: 74px;
+  flex: 0 0 auto;
+  padding: calc(14px + env(safe-area-inset-top)) max(17px, env(safe-area-inset-right)) 14px max(17px, env(safe-area-inset-left));
+}
+.device-pill { display: none; }
+.bottom-nav {
+  position: sticky;
+  left: auto;
+  right: auto;
+  bottom: 0;
+  transform: none;
+  max-width: none;
+  flex: 0 0 auto;
+  height: calc(74px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  gap: 0;
+  justify-content: space-around;
+}
+.nav-item { min-height: 44px; }
+input, textarea { font-size: max(16px, 1em); max-width: 100%; }
+.quick-card > span:not(.quick-icon) { min-width: 0; }
+.event-raw, .raw-box { overflow-wrap: anywhere; }
+/* Existing business code toggles this visibility class. */
+.hidden { display: none !important; }
+@media (min-width: 460px) {
+  html, body {
+    background: #353b4a;
+    min-height: 100dvh;
+  }
+  body { display: flow-root; }
+  .app-shell {
+    height: min(844px, calc(100dvh - 40px));
+    min-height: 0;
+    margin: 20px auto;
+    border-radius: 30px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    box-shadow:
+      0 0 0 6px #202532,
+      0 0 0 7px rgba(255, 255, 255, .18),
+      0 24px 56px rgba(0, 0, 0, .38);
+  }
+}
+@media (max-width: 459px) {
+  .app-shell { max-width: 100%; }
+}
+@media (max-width: 359px) {
+  .app-shell > main { padding-left: 14px; padding-right: 14px; }
+  .hero h1 { font-size: 31px; }
+}
