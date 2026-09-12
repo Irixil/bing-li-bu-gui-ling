@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eef2ff" />
+  <title>病历不归零｜陪你记下来</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h13a1 1 0 0 1 1 1v14H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1Zm1 15h13M8 8h7M8 12h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h4l1.5-2h5L16 7h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="m4 16-.8 4.8L8 20l11-11-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13m-5-5 5 5-5 5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark"><svg><use href="#i-spark"/></svg></div><div><strong>病历不归零</strong><span>陪你把每次不舒服记下来</span></div></div>
+      <div id="modePill" class="device-pill"><i></i> 本机记录中</div>
+    </header>
+    <main>
+      <section id="homeView" class="view active">
+        <div class="hero"><div class="hero-glow"></div><p class="eyebrow">今天，身体感觉怎么样？</p><h1>慢慢说，<em>我帮你记着。</em></h1><p class="hero-note">不用记得很完整，说起你想到的就好。</p></div>
+        <div class="quick-grid">
+          <button class="quick-card voice-card" data-view="voiceView"><span class="quick-icon"><svg><use href="#i-mic"/></svg></span><span><b>说给我听</b><small>按一下开始，想停时再按一下</small></span><svg class="arrow"><use href="#i-arrow"/></svg></button>
+          <button class="quick-card photo-card" data-view="photoCaptureView"><span class="quick-icon"><svg><use href="#i-camera"/></svg></span><span><b>拍下来</b><small>药盒、报告、检查单都可以</small></span><svg class="arrow"><use href="#i-arrow"/></svg></button>
+        </div>
+        <section class="recent-section"><div class="section-title"><h2>最近记下的</h2><button data-view="recordsView" class="link-btn">查看全部 <svg><use href="#i-arrow"/></svg></button></div><div id="homeRecent" class="recent-list"><p class="muted">正在读取记录…</p></div></section>
+      </section>
+      <section id="voiceView" class="view subview"><button class="back-btn" data-view="homeView"><svg><use href="#i-back"/></svg> 返回首页</button><div class="sub-hero voice-hero"><div class="voice-orb"><svg><use href="#i-mic"/></svg></div><p class="eyebrow">语音记录</p><h1>慢慢说就好</h1><p>想起什么说什么，我会帮你留住原话。</p></div><div class="voice-panel"><div id="voiceHint" class="voice-hint">准备好了吗？按下面的按钮开始<br><small>时间会自动记下，不用手动填写</small></div><div id="voiceTimer" class="timer">00:00</div><div id="wave" class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button id="recordBtn" class="record-btn"><svg><use href="#i-mic"/></svg><span>开始说</span></button><button id="finishVoiceBtn" class="finish-btn" disabled>说完了</button><div id="silenceNotice" class="silence-notice hidden"><b>好像停了一会儿</b><span>需要继续说吗？不着急。</span><div><button id="resumeBtn" class="mini-primary">继续说</button><button id="pauseBtn" class="mini-quiet">先停一下</button></div></div><div class="voice-text-fallback"><div><b>听不清时，可以打字补充</b><span>这是语音记录的补充，不会另起一份档案。</span></div><textarea id="rawText" rows="3" placeholder="把刚才没说清楚的一句话写下来……"></textarea><button id="saveBtn" class="primary">保存这条补充</button><div id="saveStatus" class="status" aria-live="polite"></div></div><p class="privacy-note">录音只暂存在本页，媒体保存接口接入后才会上传。</p></div></section>
+      <section id="photoCaptureView" class="view subview"><button class="back-btn" data-view="homeView"><svg><use href="#i-back"/></svg> 返回首页</button><div class="sub-hero photo-hero"><div class="photo-orb"><svg><use href="#i-camera"/></svg></div><p class="eyebrow">拍照记录</p><h1>拍下来，就不会忘</h1><p>药盒、报告、检查单，都可以先放在这里。</p></div><div class="photo-panel"><label class="upload-drop" for="photoInput"><svg><use href="#i-camera"/></svg><b>拍一张照片</b><span>也可以从相册里选择</span></label><input id="photoInput" type="file" accept="image/*" capture="environment" hidden><div id="photoPreview" class="photo-preview hidden"></div><button id="savePhotoBtn" class="primary hidden">暂存在我的资料</button><p class="privacy-note">照片先暂存在本机，OCR 和媒体保存接口接入后会继续处理。</p></div></section>
+            <section id="archiveView" class="view subview"><button class="back-btn" data-view="homeView"><svg><use href="#i-back"/></svg> 返回首页</button><div class="records-head"><div><p class="eyebrow">看病资料</p><h1>我的健康档案</h1></div><span class="archive-avatar">我</span></div><div class="archive-card"><div class="archive-card-head"><div><b>病历不归零档案</b><span>把症状、照片和看过的资料放在一起</span></div><span class="archive-dot"></span></div><div class="archive-stats"><div><b id="archiveEventCount">0</b><span>条记录</span></div><div><b id="archivePhotoCount">0</b><span>张资料照片</span></div></div></div><section class="archive-section"><div class="section-title"><h2>症状记录</h2><button data-view="recordsView" class="link-btn">查看详情 <svg><use href="#i-arrow"/></svg></button></div><div id="archiveEvents" class="recent-list"><p class="muted">正在读取记录…</p></div></section><section class="archive-section"><div class="section-title"><h2>资料照片</h2><button data-view="photoCaptureView" class="link-btn">添加照片 <svg><use href="#i-arrow"/></svg></button></div><div id="archivePhotos" class="archive-photos"><p class="muted">还没有资料照片</p></div></section></section>
+      <section id="recordsView" class="view subview"><button class="back-btn" data-view="homeView"><svg><use href="#i-back"/></svg> 返回首页</button><div class="records-head"><div><p class="eyebrow">我的记录</p><h1>每一次，都有留下</h1></div><button id="refreshBtn" class="refresh-btn">刷新</button></div><div id="dangerBanner" class="danger hidden" role="alert"></div><div id="eventsList" class="events"><p class="muted">正在读取记录…</p></div><button id="handoffBtn" class="handoff-btn">生成就诊交接材料</button><section id="detail" class="detail hidden"></section><section id="handoff" class="handoff hidden"></section></section>
+    </main>
+    <nav class="bottom-nav"><button class="nav-item active" data-view="homeView"><svg><use href="#i-home"/></svg><span>首页</span></button><button class="nav-item" data-view="recordsView"><svg><use href="#i-book"/></svg><span>我的记录</span></button><button class="nav-item" data-view="archiveView"><svg><use href="#i-folder"/></svg><span>看病资料</span></button></nav>
+  </div>
+  <template id="eventTpl"><article class="event-item"><div><div class="event-date"></div><div class="event-raw"></div><div class="badges"></div></div><button class="view-btn">查看</button></article></template>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
