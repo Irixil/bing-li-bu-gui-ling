@@ -22,13 +22,13 @@
 
 `raw_text` 必填，最多 10000 字符；`actor_name` 必填，最多 80 字符。`source_kind` 必填，可用 `elder`、`document`、`family_observation`、`family_report`、`caregiver`、`clinician_evidence`、`audio_transcript`、`system`、`unknown`。老人手输用 elder；公开论文摘要用 document，不能冒充亲口自述。
 
-可选 `occurred_time:string|null`、`related_record_ids:string[]`（最多 10 个已存在记录 ID）。不要传 `recorded_at`，让服务器记录输入时间；不知道发生时间就不填。新记录 ID 由后端生成。
+可选 `occurred_time:string|null`、`related_record_ids:string[]`（最多 10 个已存在记录 ID）。`occurred_time` 如果提供了非字符串、非 null 值，返回 `400 occurred_time_required`。不要传 `recorded_at`，让服务器记录输入时间；创建或修订时传入该字段会返回 `400 recorded_at_read_only`。不知道发生时间就不填。新记录 ID 由后端生成。
 
 每次新建先生成 `crypto.randomUUID()` 作为幂等键，同一请求超时重试必须复用原键和原请求体。同键不同内容返回 409；用户新建另一条记录使用新键，即使文字相同也保留两条。
 
 ### `POST /api/events/{record_id}/organize` 整理
 
-请求：`{"expected_version":1}`。成功 `200`，event 变为 `draft`、版本加一，并返回 `ok:true`、`ai_failed:false`、`event`、`output`、`provider`、`trace_id`、`prompt_version`、`schema_version`、`latency_ms`、`safety_guard_applied`、`raw_text_preserved:true`、`local_safety` 及扁平安全字段。output 是 `event-v0.3` 草稿，仍需人工核对；`event.draft` 与本次保存的 output 一致。
+请求：`{"expected_version":1}`。可选 `actor_name`；省略时使用“本地用户”，如果提供，必须是非空字符串且最多 80 字符。成功 `200`，event 变为 `draft`、版本加一，并返回 `ok:true`、`ai_failed:false`、`event`、`output`、`provider`、`trace_id`、`prompt_version`、`schema_version`、`latency_ms`、`safety_guard_applied`、`raw_text_preserved:true`、`local_safety` 及扁平安全字段。output 是 `event-v0.3` 草稿，仍需人工核对；`event.draft` 与本次保存的 output 一致。后端持久化接缝会再校验草稿的 Schema、来源、记录 ID、时间和结果元数据，不会保存绕过 `event-v0.3` 规则的输出。
 
 AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、`raw_text_preserved:true`、`ai_failed:true`、`failure_reason`、`local_safety` 和扁平的 `danger_detected/escalation_level/review_role/danger_reminder`。第一次整理失败时 event 保持 `inbox`，没有伪造 draft。若旧草稿已存在，失败保留原版本和旧草稿；页面必须注明本次重新整理失败，不能把旧结果当成本次成功。危险原文仍可用详情和历史接口查询。
 
@@ -51,11 +51,11 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 
 ### `POST /api/events/{record_id}/review` 核对
 
-请求：`{"expected_version":2,"action":"confirm","note":"仅确认记录准确"}`。成功 `200`，event 变为 `recorded`。`confirm` 只表示原文/整理是否记录准确，不能表示医生确认，也不能消除 `local_safety` 危险状态。退回时用 `action:"return"`，必须带原因。
+请求：`{"expected_version":2,"action":"confirm","note":"仅确认记录准确"}`。`actor_name` 规则与整理接口一致；`note` 若提供必须是字符串，非字符串返回 `400 note_required`。成功 `200`，event 变为 `recorded`。`confirm` 只表示原文/整理是否记录准确，不能表示医生确认，也不能消除 `local_safety` 危险状态。退回时用 `action:"return"`，必须带原因。
 
 ### `POST /api/events/{record_id}/revise` 修订
 
-请求带新 `raw_text`、`source_kind`、`actor_name`、`expected_version`、`reason`。成功 `201` 返回 `{ok:true,event:新记录}`。旧版本标记为 `superseded` 并留在历史，新版本重新扫描危险描述；旧原文不覆盖。新记录 version 从 1 开始，`supersedes_id` 指向旧记录，后续用新 ID 整理与核对。
+请求带新 `raw_text`、`source_kind`、`actor_name`、`expected_version`、`reason`；`actor_name` 必填，非空且最多 80 字符。成功 `201` 返回 `{ok:true,event:新记录}`。旧版本标记为 `superseded` 并留在历史，新版本重新扫描危险描述；旧原文不覆盖。新记录 version 从 1 开始，`supersedes_id` 指向旧记录，后续用新 ID 整理与核对。
 
 ### `GET /api/events`、`GET /api/events/{id}`、`GET /api/events/{id}/history`
 
@@ -65,7 +65,7 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 
 ### `POST /api/handoffs`、`GET /api/handoffs/{id}`
 
-生成请求体 `{}`，返回 `201 {ok:true,handoff}`；读取返回 `200 {ok:true,handoff}`。handoff 包含 `handoff_id`、`created_at`、`household_id`、`items`、`unresolved_count`。每个 item 是完整 Event，加上 `unresolved` 和 `unresolved_reasons`。本地单人前端不使用 `household_id`；它只是兼容层归属信息。
+生成请求体必须严格为 `{}`，非空对象返回 `400 handoff_body_must_be_empty_object`。成功返回 `201 {ok:true,handoff}`；读取返回 `200 {ok:true,handoff}`。handoff 包含 `handoff_id`、`created_at`、`household_id`、`items`、`unresolved_count`。每个 item 是完整 Event，加上 `unresolved` 和 `unresolved_reasons`。本地单人前端不使用 `household_id`；它只是兼容层归属信息。
 
 危险记录会带 `unresolved:true`、`unresolved_reasons` 中的 `local_danger_detected`；核对记录不会把它清掉。未核对、用药/医嘱、专业复核要求、升级和冲突也会成为未解决原因；不要自行把这些字段清空。
 

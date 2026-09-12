@@ -50,6 +50,9 @@ python -m backend.evaluate_mock
 # 对常用数据库做一致性备份
 python -m scripts.backup
 
+# 一次执行 B 侧发布门槛，并输出机器可读 JSON（需先完成 npm ci）
+python -m scripts.verify_b_release
+
 # 检查前端 TypeScript 接口合同（首次需安装 Node.js 22 与依赖）
 npm ci
 npm run check:contracts
@@ -73,6 +76,8 @@ npm run check:contracts
 |---|---|
 | [docs/PROJECT-PLAN.md](docs/PROJECT-PLAN.md) | 当前定位、清理取舍、五人分工、今晚和明天的顺序 |
 | [docs/B-BACKEND-PLAN.md](docs/B-BACKEND-PLAN.md) | B 已认领的后端数据/API 范围、工作顺序和验收标准 |
+| [docs/B-PARALLEL-EXECUTION.md](docs/B-PARALLEL-EXECUTION.md) | B1–B6 的并列批次、完成证据和必须等待的联合验收 |
+| [docs/B4-A-INTEGRATION-RUNBOOK.md](docs/B4-A-INTEGRATION-RUNBOOK.md) | A 接入 B 后端并验收 422、409、重启恢复的浏览器联调手册 |
 | [docs/B-INTEGRATION-HANDOFF.md](docs/B-INTEGRATION-HANDOFF.md) | A/C/D/E 与 B 的同步联调、合并顺序和比赛冻结门槛 |
 | [docs/decisions/0001-backend-mvp-stack.md](docs/decisions/0001-backend-mvp-stack.md) | 比赛 MVP 后端技术栈与开发规则 |
 | [docs/API.md](docs/API.md) | 前后端正式接线合同，包含失败与危险提醒 |

@@ -142,12 +142,62 @@ def test_write_rejects_invalid_json_with_a_stable_error_code(api):
             {"raw_text": "今天散步。", "source_kind": "elder", "actor_name": ""},
             "actor_name_required",
         ),
+        (
+            {
+                "raw_text": "今天散步。",
+                "source_kind": "elder",
+                "actor_name": "老人",
+                "occurred_time": 7,
+            },
+            "occurred_time_required",
+        ),
     ],
 )
 def test_create_rejects_invalid_event_fields(api, payload, error):
     status, result = api("POST", "/api/events", payload, idempotency_key=error)
     assert status == 400
     assert result == {"ok": False, "error": error}
+
+
+def test_create_rejects_client_supplied_recorded_at(api):
+    status, result = api(
+        "POST",
+        "/api/events",
+        {
+            "raw_text": "今天散步。",
+            "source_kind": "elder",
+            "actor_name": "老人",
+            "recorded_at": "2000-01-01T00:00:00+00:00",
+        },
+        idempotency_key="client-recorded-at",
+    )
+
+    assert status == 400
+    assert result == {"ok": False, "error": "recorded_at_read_only"}
+
+    status, listing = api("GET", "/api/events")
+    assert status == 200
+    assert listing["events"] == []
+
+
+def test_revise_rejects_client_supplied_recorded_at(api):
+    event = save_event(api)
+    status, result = api(
+        "POST",
+        f"/api/events/{event['record_id']}/revise",
+        {
+            "expected_version": event["version"],
+            "raw_text": "今天散步二十分钟。",
+            "source_kind": "elder",
+            "actor_name": "老人",
+            "reason": "补充时长",
+            "recorded_at": "2000-01-01T00:00:00+00:00",
+        },
+    )
+
+    assert status == 400
+    assert result == {"ok": False, "error": "recorded_at_read_only"}
+    assert api("GET", f"/api/events/{event['record_id']}")[1]["event"] == event
 
 
 def test_saved_event_is_available_from_list_and_detail(api):
@@ -206,6 +256,56 @@ def test_organize_requires_version_before_calling_model(api, monkeypatch):
 
     assert status == 400
     assert result == {"ok": False, "error": "expected_version_must_positive_integer"}
+    assert provider.called is False
+
+
+@pytest.mark.parametrize(
+    ("actor_name", "error"),
+    [
+        (None, "actor_name_required"),
+        ("", "actor_name_required"),
+        (" ", "actor_name_required"),
+        (7, "actor_name_required"),
+        ({"name": "老人"}, "actor_name_required"),
+        ("人" * 81, "actor_name_too_long"),
+    ],
+)
+@pytest.mark.parametrize("operation", ["organize", "review"])
+def test_optional_actor_name_must_be_a_non_empty_bounded_string_when_supplied(
+    api, monkeypatch, operation, actor_name, error
+):
+    case_id = "long" if isinstance(actor_name, str) and len(actor_name) > 80 else type(actor_name).__name__ + str(bool(actor_name))
+    event = save_event(api, key=f"{operation}-actor-{case_id}")
+    if operation == "review":
+        status, organized = api(
+            "POST",
+            f"/api/events/{event['record_id']}/organize",
+            {"expected_version": event["version"]},
+        )
+        assert status == 200
+        event = organized["event"]
+
+    class UnexpectedProvider:
+        called = False
+
+        def complete_json(self, *_args):
+            self.called = True
+            raise AssertionError("invalid actor must be rejected before model work")
+
+    provider = UnexpectedProvider()
+    monkeypatch.setattr(adapter, "provider_from", lambda: provider)
+    body = {"expected_version": event["version"], "actor_name": actor_name}
+    if operation == "review":
+        body["action"] = "confirm"
+
+    status, result = api(
+        "POST",
+        f"/api/events/{event['record_id']}/{operation}",
+        body,
+    )
+
+    assert status == 400
+    assert result == {"ok": False, "error": error}
     assert provider.called is False
 
 
@@ -304,6 +404,29 @@ def test_review_enforces_state_and_requires_a_reason_when_returned(api):
     assert status == 200
     assert returned["event"]["state"] == "needs_review"
     assert returned["event"]["version"] == 3
+
+
+def test_review_rejects_a_non_string_optional_note(api):
+    event = save_event(api)
+    status, organized = api(
+        "POST",
+        f"/api/events/{event['record_id']}/organize",
+        {"expected_version": event["version"]},
+    )
+    assert status == 200
+
+    status, result = api(
+        "POST",
+        f"/api/events/{event['record_id']}/review",
+        {
+            "expected_version": organized["event"]["version"],
+            "action": "confirm",
+            "note": 7,
+        },
+    )
+
+    assert status == 400
+    assert result == {"ok": False, "error": "note_required"}
 
 
 def test_review_and_revise_reject_stale_versions(api):
@@ -473,6 +596,13 @@ def test_missing_handoff_returns_not_found(api):
     status, result = api("GET", "/api/handoffs/handoff_missing")
     assert status == 404
     assert result == {"ok": False, "error": "handoff_not_found"}
+
+
+def test_create_handoff_requires_an_empty_object(api):
+    status, result = api("POST", "/api/handoffs", {"include": "latest"})
+
+    assert status == 400
+    assert result == {"ok": False, "error": "handoff_body_must_be_empty_object"}
 
 
 def test_unexpected_write_failure_does_not_expose_internal_details(api):

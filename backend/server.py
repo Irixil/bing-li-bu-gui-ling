@@ -13,6 +13,12 @@ except ImportError:
 ROOT=Path(__file__).resolve().parents[1]; STATIC=(ROOT/'frontend'/'dist').resolve(); SESSION_TOKEN=secrets.token_urlsafe(24)
 DB_PATH=os.getenv('DB_PATH',os.getenv('API_DB_PATH',str(ROOT/'runtime'/'records.sqlite3'))); STORE=SQLiteStore(DB_PATH)
 ALLOWED_ORIGIN=os.getenv('ALLOWED_ORIGIN','')
+def request_actor(b):
+ if 'actor_name' not in b:return '本地用户'
+ actor=b['actor_name']
+ if not isinstance(actor,str) or not actor.strip():raise StoreError('actor_name_required')
+ if len(actor)>80:raise StoreError('actor_name_too_long')
+ return actor
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*a): pass
  def end_headers(self):
@@ -94,7 +100,6 @@ class Handler(BaseHTTPRequestHandler):
   try:b=self.body()
   except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
   except (json.JSONDecodeError,UnicodeDecodeError,ValueError):return self.send_json(400,{'ok':False,'error':'invalid_json_payload'})
-  actor=str(b.get('actor_name') or '本地用户')
   try:
    if p=='/api/auth/households':
     result=STORE.create_household(b.get('name'),b.get('display_name'),b.get('role','owner'),b.get('external_key'),b.get('password'))
@@ -109,6 +114,7 @@ class Handler(BaseHTTPRequestHandler):
     m=STORE.add_member(ctx['household_id'],b.get('display_name'),b.get('role','family'),b.get('external_key'),b.get('password'))
     return self.send_json(201,{'ok':True,'member':m})
    if p=='/api/events':
+    actor=request_actor(b)
     for k in ('raw_text','source_kind','actor_name'):
      if not isinstance(b.get(k),str) or not b[k].strip():raise StoreError(k+'_required')
     if len(b['raw_text'])>10000:raise StoreError('raw_text_too_long')
@@ -118,11 +124,13 @@ class Handler(BaseHTTPRequestHandler):
     if self.headers.get('X-Auth-Token') and ctx is None:return self.send_json(401,{'ok':False,'error':'invalid_session'})
     e,created=STORE.create(b,key,actor,ctx['household_id'] if ctx else 'hh_local_default');return self.send_json(201 if created else 200,{'ok':True,'created':created,'event':e})
    if p=='/api/handoffs':
+    if b:raise StoreError('handoff_body_must_be_empty_object')
     ctx=self._auth_ctx('read')
     if self.headers.get('X-Auth-Token') and ctx is None:return self.send_json(401,{'ok':False,'error':'invalid_session'})
     return self.send_json(201,{'ok':True,'handoff':STORE.handoff(ctx['household_id'] if ctx else None)})
    z=p.strip('/').split('/')
    if len(z)>=4 and z[:2]==['api','events']:
+    actor=request_actor(b)
     ctx=self._auth_ctx();
     if self.headers.get('X-Auth-Token') and ctx is None:return self.send_json(401,{'ok':False,'error':'invalid_session'})
     rid=z[2];e=STORE.get(rid,ctx['household_id'] if ctx else None)

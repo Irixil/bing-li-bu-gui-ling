@@ -10,6 +10,7 @@ import hashlib
 import base64
 import hmac
 import json
+import math
 import secrets
 import sqlite3
 import threading
@@ -315,13 +316,14 @@ class SQLiteStore:
     def _payload(payload):
         if not isinstance(payload, dict):
             raise StoreError('body_must_object')
+        if 'recorded_at' in payload:
+            raise StoreError('recorded_at_read_only')
         text_field(payload.get('raw_text'), 'raw_text', 10000)
         text_field(payload.get('source_kind'), 'source_kind', 40)
         if payload['source_kind'] not in SOURCES:
             raise StoreError('invalid_source_kind')
         text_field(payload.get('actor_name'), 'actor_name', 80)
         text_field(payload.get('occurred_time'), 'occurred_time', 120, required=False)
-        text_field(payload.get('recorded_at'), 'recorded_at', 120, required=False)
         related = payload.get('related_record_ids', [])
         if not isinstance(related, list) or len(related) > 10:
             raise StoreError('related_record_ids_must_bounded_list')
@@ -340,7 +342,7 @@ class SQLiteStore:
              related_record_ids_json,supersedes_id,created_at,updated_at)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (
             rid, payload['raw_text'], payload['source_kind'], payload['actor_name'],
-            payload.get('occurred_time'), payload.get('recorded_at') or at,
+            payload.get('occurred_time'), at,
             'inbox', 1, None, None, reason, json.dumps(related), supersedes_id, at, at,
         ))
         safety = scan_danger(payload['raw_text'])
@@ -578,15 +580,44 @@ class SQLiteStore:
     def organize(self, rid, expected, result, actor='system'):
         expected = expected_version(expected)
         text_field(actor, 'actor_name', 80)
-        if not isinstance(result, dict) or not isinstance(result.get('output'), dict) or not result['output']:
+        if not isinstance(result, dict):
             raise StoreError('validated_output_required')
-        draft_json = json.dumps(result['output'], ensure_ascii=False, allow_nan=False)
-        meta = {k: result.get(k) for k in ('trace_id', 'provider', 'prompt_version', 'schema_version', 'latency_ms', 'safety_guard_applied')}
-        meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)
+        output = result.get('output')
+        text_meta = ('trace_id', 'provider', 'prompt_version')
+        latency = result.get('latency_ms')
+        if (
+            result.get('ok') is not True
+            or result.get('ai_failed') is not False
+            or not isinstance(output, dict)
+            or not output
+            or any(not isinstance(result.get(k), str) or not result[k].strip() for k in text_meta)
+            or result.get('schema_version') != 'event-v0.3'
+            or isinstance(latency, bool)
+            or not isinstance(latency, (int, float))
+            or not math.isfinite(latency)
+            or latency < 0
+            or not isinstance(result.get('safety_guard_applied'), bool)
+        ):
+            raise StoreError('validated_output_required')
         with self.transaction() as c:
             event = self._versioned(c, rid, expected)
             if event['state'] not in {'inbox', 'needs_review', 'draft'}:
                 raise Conflict('organize_state_invalid')
+            related = [self._get(c, related_id) for related_id in event.get('related_record_ids', [])]
+            try:
+                try:
+                    from .adapter import AdapterError, validate_output
+                except ImportError:
+                    from adapter import AdapterError, validate_output
+                validate_output(output, event['raw_text'], {**event, 'history': related})
+                draft_json = json.dumps(output, ensure_ascii=False, allow_nan=False)
+                meta = {k: result.get(k) for k in (
+                    'trace_id', 'provider', 'prompt_version', 'schema_version',
+                    'latency_ms', 'safety_guard_applied',
+                )}
+                meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)
+            except (AdapterError, TypeError, ValueError) as exc:
+                raise StoreError('validated_output_required') from exc
             c.execute('''UPDATE events SET state='draft',version=version+1,
                 draft_json=?,result_meta_json=?,updated_at=?
                 WHERE record_id=? AND version=?''', (draft_json, meta_json, now(), rid, expected))

@@ -12,14 +12,16 @@
 - 未预期服务端异常统一返回 `500 internal_server_error`，不向客户端暴露数据库路径或内部异常正文。
 - 补全前端 TypeScript 合同：请求、响应、AI 草稿、历史、审计、交接材料和错误类型。
 - 增加真实 HTTP、CORS 和后端进程重启合同回归。
+- 增加前端调用方编译期合同测试、A 浏览器联调手册和 B 侧一键发布门槛验证器。
 - 写明 A/C/D/E 与 B 的双向交付、接口变更规则和比赛冻结门槛。
 
 ## A/C/D/E 怎么接
 
 - A：以 `docs/API.md` 和 `contracts/api.ts` 为唯一接口合同；所有写入使用刚收到的版本；422 先解析 JSON，409 重新 GET；后端重启后重新读取 `/health`。
 - C：保持 `Provider.complete_json` 接缝和现有成功/失败 HTTP 包装；不得直接写数据库或改变冻结字段。
-- D：按 HTTP 可见行为验收；113 项测试是当前 B 分支的软件回归，不是临床验证或真实模型质量证明。
+- D：按 HTTP 可见行为验收；144 项测试是当前 B 分支的软件回归，不是临床验证或真实模型质量证明。
 - E：先合并 B 的合同底座，再收口 C/D/A；在唯一发布候选提交上重新跑全部门槛，不能直接引用个人分支结果。
+- E：安装锁定依赖后可运行 `python -m scripts.verify_b_release` 获取 B 侧 JSON 结果，但仍需补齐浏览器、模型模式和备份恢复证据。
 
 完整说明见 [B-INTEGRATION-HANDOFF.md](B-INTEGRATION-HANDOFF.md)。
 
@@ -27,7 +29,7 @@
 
 当前 B 分支本地结果：
 
-- [x] `python -m pytest -q`：113 passed；JUnit 见 `docs/evidence/b-backend-tests.xml`
+- [x] `python -m pytest -q`：144 passed；JUnit 见 `docs/evidence/b-backend-tests.xml`
 - [x] `npm ci && npm run check:contracts`：TypeScript 合同严格编译
 - [x] `python -m backend.evaluate_mock`：40/40，errors 0
 - [x] `python -m scripts.demo`：passed true，Mock，1 位患者、3 段公开病例改编摘要

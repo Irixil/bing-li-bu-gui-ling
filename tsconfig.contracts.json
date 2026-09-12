@@ -9,5 +9,5 @@
     "noEmit": true,
     "skipLibCheck": false
   },
-  "include": ["contracts/api.ts"]
+  "include": ["contracts/api.ts", "contracts/api.contract-test.ts"]
 }
