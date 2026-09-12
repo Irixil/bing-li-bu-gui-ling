@@ -2,7 +2,9 @@
 
 目标版本：本地 MVP 工作区，Python 3.12，默认 Mock provider。报告文件在 `docs/evidence/`。
 
-2026-09-12 协作更新：以下是媒体开发前的历史证据，本次任务包发布未重跑它们，也没有新增 ASR/OCR 通过证据。语音／照片目标与联合验收见 [团队任务包](team/README.md) 和 [合并指南](team/INTEGRATION.md)。前端在独立任务进行中，其未验收草稿不能计入本主仓库通过结果。
+2026-09-12 协作更新：下方“已通过”条目是媒体开发前留下的历史证据，本次任务包发布没有把它们改写成新的媒体或前端通过证据；任务 D 本轮的文字重跑单独记录在 [text-baseline-2026-09-12.json](evidence/text-baseline-2026-09-12.json)。目前没有新增 ASR/OCR 通过证据。语音／照片目标与联合验收见 [团队任务包](team/README.md) 和 [合并指南](team/INTEGRATION.md)。前端在独立任务进行中，其未验收草稿不能计入本主仓库通过结果。
+
+任务 D 的当前文字基线见 [text-baseline-2026-09-12.json](evidence/text-baseline-2026-09-12.json)，公开病例字段登记见 [registry.json](../data/public_cases/registry.json)，测试矩阵见 [docs/qa/test-matrix.md](qa/test-matrix.md)。本轮同时记录了系统解释器缺少开发依赖的阻塞探针，以及在临时 `requirements-dev.txt` 隔离环境中的重跑结果；两者不能混写成同一状态。
 
 ## 已通过
 

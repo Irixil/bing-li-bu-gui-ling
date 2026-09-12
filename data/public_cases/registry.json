@@ -1,0 +1,157 @@
+{
+  "schema_version": "public-case-registry-v1",
+  "dataset_version": "public-case-extracts-v1",
+  "dataset_type": "adapted_published_real_case",
+  "purpose": [
+    "比赛流程演示",
+    "本地文本后端回归"
+  ],
+  "patient_count": 1,
+  "extract_count": 3,
+  "patient_count_semantics": "3 条摘要来自同一篇公开论文中的同一位患者，不是 3 位患者，也不是本项目真实用户测试。",
+  "source": {
+    "title": "70-year-old Woman with Chest Tightness and Shortness of Breath",
+    "authors": [
+      "Robert E Dunn",
+      "Brianna Klucher",
+      "Laura J Bontempo",
+      "J David Gatz"
+    ],
+    "journal": "Clinical Practice and Cases in Emergency Medicine",
+    "doi": "10.5811/cpcem.47061",
+    "pmcid": "PMC12890330",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12890330/",
+    "checked_at": "2026-09-12"
+  },
+  "license": {
+    "name": "CC BY 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "checked_at": "2026-09-12",
+    "attribution_required": true,
+    "attribution_text": "Dunn RE, Klucher B, Bontempo LJ, Gatz JD. 70-year-old Woman with Chest Tightness and Shortness of Breath. Clinical Practice and Cases in Emergency Medicine. DOI:10.5811/cpcem.47061. © 2025 Dunn et al.",
+    "reuse_scope": "仅按文章公开许可保留署名、出处和许可，用于本项目公开病例改编；不把许可扩展为项目代码许可。"
+  },
+  "adaptation_policy": {
+    "summary": "节选 CASE PRESENTATION，翻译并概括为中文输入。",
+    "redactions": [
+      "年龄改为年龄段",
+      "省略地域和其他背景",
+      "不提供姓名、联系方式、精确日期、影像、诊断和治疗方案"
+    ],
+    "not_original_record": true,
+    "not_direct_patient_speech": true,
+    "occurred_time_policy": "论文摘要没有可用的绝对发生日期，统一保存 occurred_time=null；记录导入时间由服务端另行生成，不代替事件发生时间。"
+  },
+  "data_separation": {
+    "synthetic_cases_path": "data/synthetic/",
+    "authorized_media_path": null,
+    "note": "本登记只包含公开论文的文字改编；合成样例和未来经明确授权的媒体资料不混入本目录。"
+  },
+  "cases": [
+    {
+      "case_id": "PMC12890330-01",
+      "legacy_id": "PMC12890330-01",
+      "case_group": "PMC12890330",
+      "extract_index": 1,
+      "source_ref": {
+        "pmcid": "PMC12890330",
+        "section": "CASE PRESENTATION, first paragraph"
+      },
+      "license_ref": "#/license",
+      "adaptation_ref": "#/adaptation_policy",
+      "input_kind": "text",
+      "media_ref": null,
+      "source_kind": "document",
+      "input_text": "公开病例资料摘要：一位70多岁女性，在就诊前一个月间断胸闷，活动时加重，并有乏力和活动后呼吸困难。发生的具体日期未公开。",
+      "occurred_time": null,
+      "adaptation_notes": "节选、翻译、概括；保留论文中症状关系，不补写日期或诊断。",
+      "expected_behavior": {
+        "local_danger_detected": true,
+        "expected_notice": "原始记录中出现需要及时人工或急救专业人员判断的描述，请联系当地急救服务或专业人员，不要自行改药。",
+        "record_state_after_text_flow": "recorded",
+        "raw_text_preserved": true,
+        "source_kind_preserved": true,
+        "occurred_time_preserved_as_null": true,
+        "danger_notice_survives_confirmation": true,
+        "handoff_contains_unresolved_danger": true
+      },
+      "known_limitations": [
+        "这是公开论文改编摘要，不是原始病历或本项目真实用户输入。",
+        "本地规则命中胸闷和呼吸困难，只证明规则命中，不证明疾病诊断或临床结论。",
+        "Mock 整理结果不代表真实模型质量。"
+      ],
+      "test_case_ids": ["CASE-PUBLIC-01", "TEXT-DANGER-01"],
+      "evidence_ref": "docs/evidence/text-baseline-2026-09-12.json#public_case_rows"
+    },
+    {
+      "case_id": "PMC12890330-02",
+      "legacy_id": "PMC12890330-02",
+      "case_group": "PMC12890330",
+      "extract_index": 2,
+      "source_ref": {
+        "pmcid": "PMC12890330",
+        "section": "CASE PRESENTATION, first paragraph"
+      },
+      "license_ref": "#/license",
+      "adaptation_ref": "#/adaptation_policy",
+      "input_kind": "text",
+      "media_ref": null,
+      "source_kind": "document",
+      "input_text": "同一公开病例资料摘要：患者女儿报告，患者的心率在此前数月曾低至每分钟40次。具体测量日期未公开。",
+      "occurred_time": null,
+      "adaptation_notes": "保留论文中的转述关系；source_kind 仍为 document，不能伪装为本项目收到女儿的直接发言。",
+      "expected_behavior": {
+        "local_danger_detected": false,
+        "expected_notice": "只显示未命中本地规则，不显示“无危险”或“正常”等医学结论。",
+        "record_state_after_text_flow": "recorded",
+        "raw_text_preserved": true,
+        "source_kind_preserved": true,
+        "occurred_time_preserved_as_null": true,
+        "danger_notice_survives_confirmation": "not_applicable",
+        "handoff_contains_unresolved_danger": false
+      },
+      "known_limitations": [
+        "当前本地规则未覆盖心率数值；false 只表示未命中规则，绝不表示数值正常或无需就医。",
+        "这是公开论文改编摘要，不是原始病历或本项目真实用户输入。",
+        "具体测量日期未知，不能从“此前数月”推导绝对日期。"
+      ],
+      "test_case_ids": ["CASE-PUBLIC-02", "TEXT-DANGER-02"],
+      "evidence_ref": "docs/evidence/text-baseline-2026-09-12.json#public_case_rows"
+    },
+    {
+      "case_id": "PMC12890330-03",
+      "legacy_id": "PMC12890330-03",
+      "case_group": "PMC12890330",
+      "extract_index": 3,
+      "source_ref": {
+        "pmcid": "PMC12890330",
+        "section": "CASE PRESENTATION, first paragraph, review of systems"
+      },
+      "license_ref": "#/license",
+      "adaptation_ref": "#/adaptation_policy",
+      "input_kind": "text",
+      "media_ref": null,
+      "source_kind": "document",
+      "input_text": "同一公开病例资料摘要：患者还报告数月内有食欲下降、腹部疼痛、腹泻、双腿和背部疼痛，以及全身无力、乏力。具体起始日期未公开。",
+      "occurred_time": null,
+      "adaptation_notes": "节选、翻译、概括；省略诊断与治疗，不补写起始日期。",
+      "expected_behavior": {
+        "local_danger_detected": false,
+        "expected_notice": "只显示未命中本地规则，不显示“无危险”或“正常”等医学结论。",
+        "record_state_after_text_flow": "recorded",
+        "raw_text_preserved": true,
+        "source_kind_preserved": true,
+        "occurred_time_preserved_as_null": true,
+        "danger_notice_survives_confirmation": "not_applicable",
+        "handoff_contains_unresolved_danger": false
+      },
+      "known_limitations": [
+        "false 只表示未命中本地关键词规则，不能解释为医学上的正常。",
+        "这是公开论文改编摘要，不是原始病历或本项目真实用户输入。",
+        "症状起始日期未知，不能从相对时间推导绝对日期。"
+      ],
+      "test_case_ids": ["CASE-PUBLIC-03", "TEXT-DANGER-03"],
+      "evidence_ref": "docs/evidence/text-baseline-2026-09-12.json#public_case_rows"
+    }
+  ]
+}

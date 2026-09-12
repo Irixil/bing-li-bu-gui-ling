@@ -1,0 +1,190 @@
+{
+  "evidence_id": "TASK-D-TEXT-BASELINE-20260912",
+  "scope": "T0-T2 公开病例与现有文字闭环",
+  "status": "mixed",
+  "dataset_version": "public-case-extracts-v1",
+  "patient_count": 1,
+  "extract_count": 3,
+  "status_detail": {
+    "system_interpreter_probe": "blocked",
+    "isolated_declared_requirements": "passed"
+  },
+  "generated_at": "2026-09-12T11:58:18Z",
+  "repository": "bing-li-bu-gui-ling",
+  "branch": "main",
+  "commit": "6e1a7f3f5d33b66b259fb2e35784e9447be23a07",
+  "working_tree_at_run": [
+    " M data/public_cases/README.md",
+    " M docs/VALIDATION.md",
+    "?? data/public_cases/registry.json",
+    "?? docs/evidence/text-baseline-2026-09-12.json",
+    "?? docs/qa/README.md",
+    "?? docs/qa/coverage.md",
+    "?? docs/qa/defect-template.md",
+    "?? docs/qa/defects.md",
+    "?? docs/qa/evidence-template.md",
+    "?? docs/qa/t0-t2-acceptance.md",
+    "?? docs/qa/test-matrix.md",
+    "?? docs/team/TASK-D-CASES-TEST-QA-PLAN.md",
+    "?? scripts/validate_task_d.py"
+  ],
+  "working_tree_note": "运行期间未修改后端或前端代码；未提交变更仅为任务 D 文档、登记和证据资料。",
+  "environment": {
+    "os": "macOS-26.4-arm64-arm-64bit",
+    "python_system": "Python 3.12.14",
+    "python_command": "python3.12",
+    "service_scope": "临时 localhost HTTP 服务；未调用真实模型或外部付费服务",
+    "private_medical_data": false,
+    "credentials_read": false,
+    "dataset_sha256": {
+      "data/public_cases/cases.json": "817fe0047df49188be89dc4aa0500117ed68f3b3f27041d44f30f77e6f44f9f1",
+      "data/public_cases/registry.json": "bc01d6f359e995fbb0aecc936cf89e63c6572376b9bf5e6d6c2df530f1bc017a"
+    }
+  },
+  "dependency_probes": {
+    "system_interpreter": {
+      "installation": "系统 python3.12 未安装 requirements-dev.txt",
+      "pytest": "未安装",
+      "jsonschema": "未安装",
+      "interpretation": "环境阻塞，不判定为产品缺陷"
+    },
+    "isolated_declared_requirements": {
+      "installation": "临时目录创建 Python 3.12 venv，并安装 requirements-dev.txt",
+      "install_command": "python3.12 -m venv <temporary-venv> && <temporary-venv>/bin/python -m pip install -r requirements-dev.txt",
+      "lifetime": "仅用于本次本地运行，未写入仓库",
+      "interpretation": "用于验证当前提交在声明依赖满足时的文字基线"
+    }
+  },
+  "command_runs": [
+    {
+      "command": "python3.12 -m pytest -q",
+      "environment": "system interpreter",
+      "exit_code": 1,
+      "status": "blocked",
+      "summary": "No module named pytest"
+    },
+    {
+      "command": "python3.12 -m backend.evaluate_mock",
+      "environment": "system interpreter",
+      "exit_code": 1,
+      "status": "blocked",
+      "summary": {
+        "total": 40,
+        "schema_pass": 0,
+        "safety_pass": 0,
+        "errors": 40,
+        "cause": "缺少 jsonschema 依赖"
+      }
+    },
+    {
+      "command": "python3.12 -m scripts.demo --out <temporary-json>",
+      "environment": "system interpreter",
+      "exit_code": 1,
+      "status": "blocked",
+      "summary": "首条公开病例整理返回 422 ai_organize_failed；原文和 local_safety 保留，根因为缺少 jsonschema 依赖"
+    },
+    {
+      "command": "<temporary-venv>/bin/python -m pytest -q",
+      "environment": "isolated venv with requirements-dev.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "summary": "71 passed in 10.69s"
+    },
+    {
+      "command": "<temporary-venv>/bin/python -m backend.evaluate_mock",
+      "environment": "isolated venv with requirements-dev.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "summary": {
+        "total": 40,
+        "schema_pass": 40,
+        "safety_pass": 40,
+        "errors": 0,
+        "synthetic_only": true,
+        "provider": "mock"
+      }
+    },
+    {
+      "command": "<temporary-venv>/bin/python -m scripts.demo --out <temporary-json>",
+      "environment": "isolated venv with requirements-dev.txt",
+      "exit_code": 0,
+      "status": "passed",
+      "summary": {
+        "patients": 1,
+        "extracts": 3,
+        "provider": "mock",
+        "database_reopen_checked": true
+      }
+    },
+    {
+      "command": "python3.12 scripts/validate_task_d.py",
+      "environment": "system Python 3.12 stdlib-only QA validator",
+      "exit_code": 0,
+      "status": "passed",
+      "summary": "3 条病例、26 个矩阵用例、逐案证据/哈希、覆盖表和媒体/前端边界校验通过"
+    }
+  ],
+  "public_case_rows": [
+    {
+      "case_id": "PMC12890330-01",
+      "case_group": "PMC12890330",
+      "source_kind": "document",
+      "occurred_time": null,
+      "expected_local_danger": true,
+      "actual_local_danger": true,
+      "state": "recorded",
+      "raw_text_queryable": true,
+      "idempotency_checked": true,
+      "history_count": 3,
+      "danger_notice_persisted_after_confirmation": true
+    },
+    {
+      "case_id": "PMC12890330-02",
+      "case_group": "PMC12890330",
+      "source_kind": "document",
+      "occurred_time": null,
+      "expected_local_danger": false,
+      "actual_local_danger": false,
+      "false_semantics": "仅表示当前规则未命中，不能表示医学正常",
+      "state": "recorded",
+      "raw_text_queryable": true,
+      "idempotency_checked": true,
+      "history_count": 3,
+      "danger_notice_persisted_after_confirmation": "not_applicable"
+    },
+    {
+      "case_id": "PMC12890330-03",
+      "case_group": "PMC12890330",
+      "source_kind": "document",
+      "occurred_time": null,
+      "expected_local_danger": false,
+      "actual_local_danger": false,
+      "false_semantics": "仅表示当前规则未命中，不能表示医学正常",
+      "state": "recorded",
+      "raw_text_queryable": true,
+      "idempotency_checked": true,
+      "history_count": 3,
+      "danger_notice_persisted_after_confirmation": "not_applicable"
+    }
+  ],
+  "closed_loop_claims": {
+    "raw_text_saved_before_organize": true,
+    "organize_failure_preserves_raw_text": true,
+    "review_does_not_clear_local_danger": true,
+    "revision_keeps_old_history": true,
+    "idempotency_and_version_conflict": true,
+    "handoff_source_and_unresolved_reason": true,
+    "database_reopen": true
+  },
+  "not_proven": [
+    "文件上传、媒体原件存取、媒体备份恢复",
+    "真实 ASR/OCR 或真实模型质量",
+    "前端、浏览器、手机权限和录音暂停/续录",
+    "真实老人/医生参与效果、临床安全、付费意愿和公网生产安全"
+  ],
+  "limitations": [
+    "公开病例是 CC BY 4.0 论文的节选、翻译和概括，不是原始病历或本项目真实用户测试。",
+    "Mock 结果只证明当前规则、Schema 和流程替身可运行，不证明真实模型质量。",
+    "当前系统解释器缺少开发依赖；通过结果来自按 requirements-dev.txt 建立的临时隔离环境。"
+  ]
+}

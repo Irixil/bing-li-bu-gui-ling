@@ -1,0 +1,87 @@
+{
+  "evidence_id": "TASK-D-TEXT-RETRY-20260912",
+  "claim": "整理第一次失败返回 422 后，同一 Event 可以再次整理成功；record_id 和原文保持不变，Event 数量不增加，审计记录两次尝试。",
+  "scope": "T2 / TEXT-RETRY-01",
+  "status": "passed",
+  "generated_at": "2026-09-12T15:10:11Z",
+  "repository": "bing-li-bu-gui-ling",
+  "branch": "codex/task-d-qa",
+  "commit": "6e1a7f3f5d33b66b259fb2e35784e9447be23a07",
+  "working_tree": "has-uncommitted-task-d-materials",
+  "environment": {
+    "os": "macOS-26.4-arm64-arm-64bit",
+    "python": "Python 3.12.14",
+    "dependency_source": "临时 Python 3.12 venv + requirements-dev.txt",
+    "service_scope": "127.0.0.1 临时 HTTP 服务",
+    "database": "临时 SQLite；单次测试使用独立临时路径",
+    "credentials_read": false,
+    "private_medical_data": false
+  },
+  "provider": {
+    "failure_attempt": {
+      "kind": "mock",
+      "name": "TimedOutProvider",
+      "behavior": "抛出 TimeoutError，模拟整理失败"
+    },
+    "retry_attempt": {
+      "kind": "mock",
+      "name": "MockProvider",
+      "behavior": "返回通过当前 Schema 校验的整理结果"
+    }
+  },
+  "input": {
+    "case_ids": [],
+    "fixture_paths": ["tests/test_task_d_retry.py"],
+    "fixture_sha256": {
+      "tests/test_task_d_retry.py": "4b55de2d31ca9d31add7c65ae71a881f440fd0619cab71fb421ab8c75e432aae"
+    },
+    "synthetic_text": "今天头晕，想整理一下这条记录。"
+  },
+  "execution": {
+    "started_at": "2026-09-12T15:10:10Z",
+    "finished_at": "2026-09-12T15:10:11Z",
+    "commands": [
+      {
+        "command": "python3.12 -m pytest -q tests/test_task_d_retry.py",
+        "exit_code": 1,
+        "result_summary": "系统解释器缺少 pytest；环境阻塞，不是产品失败。"
+      },
+      {
+        "command": "<temporary-venv>/bin/python -m pytest -q tests/test_task_d_retry.py",
+        "exit_code": 0,
+        "result_summary": "1 passed in 0.60s"
+      }
+    ]
+  },
+  "observations": {
+    "expected": "第一次 organize 返回 422；原文、Event 和版本保留；再次以 expected_version=1 整理返回 200；同一 record_id 变为 draft/version=2；Event 总数仍为 1；历史审计按顺序包含 organize_failed 和 organized。",
+    "actual": {
+      "first_attempt_status": 422,
+      "first_attempt_record_id_preserved": true,
+      "first_attempt_state": "inbox",
+      "first_attempt_version": 1,
+      "raw_text_preserved_after_failure": true,
+      "event_count_after_failure": 1,
+      "retry_status": 200,
+      "retry_record_id_preserved": true,
+      "retry_raw_text_preserved": true,
+      "retry_state": "draft",
+      "retry_version": 2,
+      "event_count_after_retry": 1,
+      "audit_actions_in_order": ["created", "organize_failed", "organized"]
+    },
+    "retained_raw_or_original": "yes",
+    "source_and_time_preserved": "yes",
+    "danger_notice_persisted": "not_applicable"
+  },
+  "limitations": [
+    "测试使用 Mock provider 和合成文字，不证明真实模型质量。",
+    "测试覆盖单个本地 HTTP Event，不证明媒体任务、并发重试或公网部署行为。",
+    "系统解释器缺少 pytest；通过结果来自按 requirements-dev.txt 建立的临时隔离环境。"
+  ],
+  "review": {
+    "reviewer": "任务 D 本地验收",
+    "reviewed_at": "2026-09-12T15:10:11Z",
+    "follow_up": "集成其他分支后在最终基线重跑 TEXT-RETRY-01；若状态/接口合同改变，更新本证据。"
+  }
+}

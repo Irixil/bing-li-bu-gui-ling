@@ -1,0 +1,66 @@
+{
+  "evidence_id": "TASK-D-RISK-FINDINGS-20260912",
+  "claim": "任务 D 对当前基线中三类需要其他负责人处理的产品风险完成了本地可复现记录；本证据不表示这些风险已修复。",
+  "scope": "T3 / PR 与产品验收风险复现",
+  "status": "open_findings",
+  "generated_at": "2026-09-12T15:30:00+08:00",
+  "repository": "bing-li-bu-gui-ling",
+  "branch": "codex/task-d-qa",
+  "commit": "6e1a7f3f5d33b66b259fb2e35784e9447be23a07",
+  "environment": {
+    "os": "macOS",
+    "python": "Python 3.12.14",
+    "service_scope": "本地 SQLite；无外部服务",
+    "provider": "mock",
+    "credentials_read": false,
+    "private_medical_data": false
+  },
+  "findings": [
+    {
+      "id": "D-SEC-20260912-001",
+      "category": "data_isolation",
+      "owner_suggestion": "A/集成人",
+      "summary": "不同家庭复用同一 Idempotency-Key 时，第二次请求返回第一个家庭的 Event。",
+      "observed": {
+        "first_request_created": true,
+        "second_request_created": false,
+        "same_record_returned": true,
+        "second_response_household_matches_request": false
+      },
+      "impact": "若启用账号/多家庭路径，可能跨家庭暴露记录；当前比赛单人本地路径不据此宣称安全。",
+      "status": "open"
+    },
+    {
+      "id": "D-UX-20260912-002",
+      "category": "false_conflict",
+      "owner_suggestion": "C/产品负责人",
+      "summary": "不同日期的普通血压记录被 Mock 标记为冲突。",
+      "observed": {
+        "current_text": "今天血压 120/80。",
+        "history_text": "昨天血压 130/85。",
+        "conflict_present": true,
+        "record_refs": ["rec_old"]
+      },
+      "impact": "连续测量可能被堆积为待处理冲突，降低真正异常的可见性。",
+      "status": "open"
+    },
+    {
+      "id": "D-SAFETY-20260912-003",
+      "category": "context_over_escalation",
+      "owner_suggestion": "C/医学规则负责人",
+      "summary": "否定、历史和提问语境中的危险词仍被升级为 emergency。",
+      "observed": [
+        {"input": "今天没有胸痛，也不喘。", "danger_detected": true, "escalation_level": "emergency"},
+        {"input": "去年摔倒过，现在没事。", "danger_detected": true, "escalation_level": "emergency"},
+        {"input": "只是问胸闷是什么意思。", "danger_detected": true, "escalation_level": "emergency"}
+      ],
+      "impact": "可能造成过度提醒；D 建议保留扫描并由规则负责人决定分级，不在本分支改医学规则。",
+      "status": "open"
+    }
+  ],
+  "limitations": [
+    "这是当前 main 基线的本地可复现观察，不代表 PR #2/#3 合并后的最终行为。",
+    "未读取密钥、未上传私人资料、未调用付费服务。",
+    "本证据只记录产品风险，不替代医学、法律或安全审查。"
+  ]
+}

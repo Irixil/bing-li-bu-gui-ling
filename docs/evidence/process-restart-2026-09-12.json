@@ -1,0 +1,54 @@
+{
+  "evidence_id": "TASK-D-TEXT-RESTART-20260912",
+  "claim": "现有文字记录在本地服务停止并重启后仍可查询，状态和有限危险标记不丢失",
+  "scope": "T2 / TEXT-RESTART-01",
+  "status": "passed",
+  "generated_at": "2026-09-12T11:45:52Z",
+  "repository": "bing-li-bu-gui-ling",
+  "branch": "main",
+  "commit": "6e1a7f3f5d33b66b259fb2e35784e9447be23a07",
+  "environment": {
+    "os": "macOS-26.4-arm64-arm-64bit",
+    "python": "Python 3.12.14",
+    "dependency_source": "临时 Python 3.12 venv + requirements-dev.txt",
+    "service_scope": "127.0.0.1 临时 HTTP 服务",
+    "database": "临时 SQLite；停止和重启使用同一数据库路径",
+    "provider": "mock",
+    "credentials_read": false,
+    "private_medical_data": false
+  },
+  "input": {
+    "dataset": "data/public_cases/cases.json",
+    "dataset_version": "public-case-extracts-v1",
+    "patient_count": 1,
+    "extract_count": 3,
+    "source_kind": "document",
+    "occurred_time": null,
+    "registry_sha256": "bc01d6f359e995fbb0aecc936cf89e63c6572376b9bf5e6d6c2df530f1bc017a"
+  },
+  "command": "<venv>/bin/python -m backend.run_local（临时 DB_PATH/API_PORT；启动 → 导入 3 条 → terminate → 使用同一 DB_PATH 重启 → GET /api/events）",
+  "observations": {
+    "expected": "重启后 3 条原文可查询，状态/版本/危险标记保留。",
+    "actual": {
+      "passed": true,
+      "extracts": 3,
+      "states": ["recorded"],
+      "danger_detected_count": 1,
+      "raw_texts_queryable": true,
+      "process_restarted": true
+    },
+    "raw_text_preserved": true,
+    "source_and_time_preserved": true,
+    "danger_notice_persisted_for_matching_case": true
+  },
+  "limitations": [
+    "这是文字 SQLite 重启证据，不证明媒体原件或媒体处理任务的重启恢复。",
+    "provider=mock，不证明真实模型或真实识别服务质量。",
+    "公开病例是论文改编摘要，不是原始病历或真实用户测试。"
+  ],
+  "review": {
+    "reviewer": "任务 D 本地验收",
+    "reviewed_at": "2026-09-12T11:45:52Z",
+    "follow_up": "媒体重启用例保留在 MEDIA-RESTART-01，待媒体实现后复测。"
+  }
+}

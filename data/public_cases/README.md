@@ -2,6 +2,8 @@
 
 本目录只用于比赛演示和软件测试。共 **1 位公开病例患者、3 段改编摘要**，不能称为 3 个独立病例或真实用户测试。
 
+结构化字段登记见 [registry.json](registry.json)；现有 [cases.json](cases.json) 保留为演示脚本的输入数据。登记表中的 `case_id`、来源、许可、改编范围、`occurred_time`、预期行为和限制应与运行证据逐项对应。
+
 来源：[70-year-old Woman with Chest Tightness and Shortness of Breath](https://pmc.ncbi.nlm.nih.gov/articles/PMC12890330/)。作者 Robert E Dunn、Brianna Klucher、Laura J Bontempo、J David Gatz。DOI [10.5811/cpcem.47061](https://doi.org/10.5811/cpcem.47061)，PMCID PMC12890330。抓取核验日期 2026-09-12。
 
 文章许可区原文为：
