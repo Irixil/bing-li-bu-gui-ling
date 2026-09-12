@@ -173,21 +173,44 @@ def test_dashscope_provider_uses_explicit_qwen_model_without_local_fallback(tmp_
     assert b"qwen3-asr-flash" in request.data
 
 
-def test_paraformer_selection_does_not_inherit_qwen_model(tmp_path, monkeypatch):
+def test_paraformer_requires_public_file_url(tmp_path, monkeypatch):
+    path = make_wav_file(tmp_path)
+    monkeypatch.setenv("MEDIA_ASR_PROVIDER", "paraformer")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
+    monkeypatch.setenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash")
+    error = assert_error(lambda: recognize_file(path, kind="audio", content_type="audio/wav", attempt_id="cloud-2"), "provider_input_required")
+    assert "公网" in error.message
+
+
+def test_paraformer_async_submit_poll_and_download(tmp_path, monkeypatch):
     from unittest.mock import patch
 
     path = make_wav_file(tmp_path)
     monkeypatch.setenv("MEDIA_ASR_PROVIDER", "paraformer")
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
     monkeypatch.setenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash")
+    monkeypatch.setenv("DASHSCOPE_ASR_FILE_URL", "https://example.invalid/audio.wav")
+    monkeypatch.setenv("DASHSCOPE_ASR_POLL_INTERVAL_SECONDS", "0")
 
     class Response:
+        def __init__(self, payload): self.payload = payload
         def __enter__(self): return self
         def __exit__(self, *args): return False
-        def read(self): return '{"text":"转写结果"}'.encode()
+        def read(self): return json.dumps(self.payload).encode()
 
-    with patch("backend.recognition.urllib.request.urlopen", return_value=Response()) as call:
+    responses = iter([
+        {"output": {"task_id": "task-123", "task_status": "RUNNING"}},
+        {"output": {"task_id": "task-123", "task_status": "SUCCEEDED", "results": [{"transcription_url": "https://example.invalid/result.json"}]}},
+        {"output": {"text": "转写结果"}},
+    ])
+
+    with patch("backend.recognition.urllib.request.urlopen", side_effect=lambda *args, **kwargs: Response(next(responses))) as call:
         result = recognize_file(path, kind="audio", content_type="audio/wav", attempt_id="cloud-2")
     assert result["model"] == "paraformer-v2"
-    assert b"paraformer-v2" in call.call_args.args[0].data
-    assert b"qwen3-asr-flash" not in call.call_args.args[0].data
+    assert result["text"] == "转写结果"
+    assert call.call_count == 3
+    create_request = call.call_args_list[0].args[0]
+    assert create_request.full_url.endswith("/services/audio/asr/transcription")
+    assert b"paraformer-v2" in create_request.data
+    assert b"example.invalid/audio.wav" in create_request.data
+    assert call.call_args_list[1].args[0].full_url.endswith("/tasks/task-123")

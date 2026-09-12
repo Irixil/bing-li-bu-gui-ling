@@ -23,6 +23,7 @@ import os
 import secrets
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -213,12 +214,120 @@ def _run_json_command(command: list[str], timeout: float) -> Mapping[str, Any]:
             "provider_auth_failed",
             "provider_rate_limited",
             "invalid_provider_response",
+            "provider_input_required",
         }:
             error_code = "provider_unavailable"
         raise RecognitionError(error_code, "识别服务未返回可用文字。", error_code in {
             "provider_timeout", "provider_unavailable", "provider_rate_limited"
         })
     return payload
+
+
+def _dashscope_error(exc: BaseException, *, operation: str) -> RecognitionError:
+    """Map an HTTP/network exception without exposing response bodies or URLs."""
+    if isinstance(exc, urllib.error.HTTPError):
+        code = "provider_auth_failed" if exc.code in {401, 403} else "provider_rate_limited" if exc.code == 429 else "provider_unavailable"
+        return RecognitionError(code, f"云端 ASR {operation}失败。", code in {"provider_rate_limited", "provider_unavailable"})
+    if isinstance(exc, (urllib.error.URLError, TimeoutError)):
+        return RecognitionError("provider_timeout" if isinstance(exc, TimeoutError) else "provider_unavailable", f"云端 ASR {operation}暂时不可用，可稍后重试。", True)
+    if isinstance(exc, json.JSONDecodeError):
+        return RecognitionError("invalid_provider_response", "云端 ASR 返回格式无效。", True)
+    return RecognitionError("provider_unavailable", f"云端 ASR {operation}失败。", True)
+
+
+def _dashscope_json_request(request: urllib.request.Request, *, timeout: float, operation: str) -> Mapping[str, Any]:
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise _dashscope_error(exc, operation=operation) from exc
+    if not isinstance(payload, Mapping):
+        raise RecognitionError("invalid_provider_response", "云端 ASR 返回格式无效。", True)
+    return payload
+
+
+def _text_from_transcription_payload(payload: Mapping[str, Any]) -> str | None:
+    """Extract text from the documented result and common DashScope variants."""
+    candidates: list[Any] = []
+    output = payload.get("output")
+    if isinstance(output, Mapping):
+        candidates.extend([output.get("text"), output.get("transcript")])
+        results = output.get("results")
+        if isinstance(results, list):
+            for item in results:
+                if isinstance(item, Mapping):
+                    candidates.extend([item.get("text"), item.get("transcript")])
+        candidates.extend([output.get("transcription"), output.get("transcriptions")])
+    candidates.extend([payload.get("text"), payload.get("transcript")])
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+        if isinstance(candidate, list):
+            parts = [str(item.get("text", "")).strip() for item in candidate if isinstance(item, Mapping)]
+            value = "".join(part for part in parts if part)
+            if value:
+                return value
+    return None
+
+
+def _recognize_dashscope_paraformer_async(path: Path, mime: str, attempt_id: str, *, model: str, api_key: str, timeout: float) -> RecognitionResult:
+    """Use the official Paraformer file-transcription task API.
+
+    Paraformer-v2's task API accepts a publicly reachable ``file_urls`` value;
+    it does not accept a local multipart file.  The staging/upload ownership
+    belongs to the integration layer, so this adapter accepts an explicit
+    ``DASHSCOPE_ASR_FILE_URL`` for the current smoke path and fails clearly
+    when it is absent.  A future OSS presign step can set the same input
+    without changing this provider contract.
+    """
+    file_url = os.getenv("DASHSCOPE_ASR_FILE_URL", "").strip()
+    if not file_url:
+        raise RecognitionError(
+            "provider_input_required",
+            "Paraformer-v2 需要公网可访问的音频 URL；请先配置 DASHSCOPE_ASR_FILE_URL（生产环境应由 OSS 预签名上传提供）。",
+            False,
+        )
+    api_base = os.getenv("DASHSCOPE_ASR_API_BASE_URL", "https://dashscope.aliyuncs.com/api/v1").rstrip("/")
+    headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json", "Accept": "application/json", "X-DashScope-Async": "enable"}
+    body = {"model": model, "input": {"file_urls": [file_url]}, "parameters": {"language_hints": ["zh"]}}
+    create_request = urllib.request.Request(api_base + "/services/audio/asr/transcription", json.dumps(body).encode("utf-8"), headers, method="POST")
+    created = _dashscope_json_request(create_request, timeout=timeout, operation="任务提交")
+    created_output = created.get("output")
+    task_id = created_output.get("task_id") if isinstance(created_output, Mapping) else created.get("task_id")
+    if not isinstance(task_id, str) or not task_id.strip():
+        raise RecognitionError("invalid_provider_response", "云端 ASR 未返回任务编号。", True)
+
+    poll_seconds = max(0.0, float(os.getenv("DASHSCOPE_ASR_POLL_INTERVAL_SECONDS", "1")))
+    deadline = time.monotonic() + timeout
+    while True:
+        if time.monotonic() >= deadline:
+            raise RecognitionError("provider_timeout", "云端 ASR 任务超时，可稍后重试。", True)
+        status_request = urllib.request.Request(api_base + "/tasks/" + task_id, headers={"Authorization": "Bearer " + api_key, "Accept": "application/json"}, method="GET")
+        status = _dashscope_json_request(status_request, timeout=min(timeout, max(1.0, deadline - time.monotonic())), operation="任务查询")
+        output = status.get("output") if isinstance(status.get("output"), Mapping) else status
+        state = str(output.get("task_status", "")).upper() if isinstance(output, Mapping) else ""
+        if state in {"FAILED", "CANCELED", "CANCELLED"}:
+            raise RecognitionError("provider_unavailable", "云端 ASR 任务未完成。", True)
+        if state in {"SUCCEEDED", "SUCCESS", "COMPLETED"}:
+            text = _text_from_transcription_payload(status)
+            result_url: str | None = None
+            results = output.get("results") if isinstance(output, Mapping) else None
+            if isinstance(results, list):
+                for item in results:
+                    if isinstance(item, Mapping) and isinstance(item.get("transcription_url"), str):
+                        result_url = item["transcription_url"]
+                        break
+            if not result_url and isinstance(output, Mapping) and isinstance(output.get("transcription_url"), str):
+                result_url = output["transcription_url"]
+            if not text and result_url:
+                result_request = urllib.request.Request(result_url, headers={"Accept": "application/json"}, method="GET")
+                result_payload = _dashscope_json_request(result_request, timeout=min(timeout, max(1.0, deadline - time.monotonic())), operation="结果下载")
+                text = _text_from_transcription_payload(result_payload)
+            if not text:
+                raise RecognitionError("no_text_detected", "录音中没有识别到可用文字。", False)
+            return RecognitionResult(text=text, provider="dashscope", model=model, is_mock=False)
+        if poll_seconds:
+            time.sleep(min(poll_seconds, max(0.0, deadline - time.monotonic())))
 
 
 def _recognize_dashscope_audio(path: Path, mime: str, attempt_id: str, *, model_override: str | None = None) -> RecognitionResult:
@@ -234,6 +343,8 @@ def _recognize_dashscope_audio(path: Path, mime: str, attempt_id: str, *, model_
     model = (model_override or os.getenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash")).strip() or "qwen3-asr-flash"
     base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
     timeout = float(os.getenv("MEDIA_ASR_TIMEOUT_SECONDS", os.getenv("MEDIA_RECOGNITION_TIMEOUT_SECONDS", "180")))
+    if model.lower().startswith("paraformer"):
+        return _recognize_dashscope_paraformer_async(path, mime, attempt_id, model=model, api_key=api_key, timeout=timeout)
     boundary = "----codex-" + secrets.token_hex(12)
     data = path.read_bytes()
     parts: list[bytes] = []

@@ -51,7 +51,7 @@ else:
 
 当前仓库不把 Whisper/Torch 这类重量级本地模型依赖塞进基础 `requirements.txt`。运行 ASR 前，需要在单独的 Python 运行时安装并固定 `openai-whisper`（导入名 `whisper`）及其 PyTorch 依赖；`WHISPER_PYTHON` 必须指向该运行时。Vision OCR 使用系统框架和构建工具，不需要 Python OCR 包。
 
-云端 ASR 已加入显式 DashScope provider 接线（提交 `191719c`），但本机未配置密钥，尚未产生真实云调用证据；没有读取或提交任何模型密钥。若后续选择云 ASR/OCR，需要另一个显式 provider、数据传输和费用决定；不能把模型整理接口当成语音或照片识别。
+云端 ASR 已加入显式 DashScope provider 接线。Paraformer-v2 走百炼官方异步文件转写接口（`/api/v1/services/audio/asr/transcription` + `X-DashScope-Async: enable`），再轮询 `/api/v1/tasks/{task_id}`，必要时下载 `transcription_url`。该接口要求 DashScope 能访问的公网音频 URL；当前适配器从 `DASHSCOPE_ASR_FILE_URL` 读取，缺失时返回 `provider_input_required`，不会把本地私人录音上传到未知位置。生产接入应由 A 的 OSS 预签名上传层提供此 URL。Qwen ASR 等模型仍使用兼容接口。没有读取或提交任何模型密钥。真实云调用仍需经授权的公网样例或 OSS 测试对象，不能把模型整理接口当成语音或照片识别。
 
 ## 实测证据
 
