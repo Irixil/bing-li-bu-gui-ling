@@ -8,11 +8,9 @@
 
 ## 启动
 
-```bash
-python3 -m http.server 5173 --directory frontend
-```
+推荐按 [在线自测指南](../docs/DEMO-SELFTEST.md) 填好根目录 `.env`，使用 `python -m scripts.start_demo`，打开 <http://localhost:18768/>。前后端同源，不需要独立启动前端。
 
-浏览器打开 <http://localhost:5173>。后端默认运行在 `http://127.0.0.1:18768`，前端在 5173 端口时会自动请求该地址；后端需设置 `ALLOWED_ORIGIN=http://localhost:5173`。
+开发时仍可用 `python3 -m http.server 5173 --directory frontend`，并为后端显式设置 `ALLOWED_ORIGIN=http://localhost:5173`，浏览器使用相同 localhost 主机名。独立开发配置不要和推荐同源演示入口混用。
 
 ## 当前边界
 

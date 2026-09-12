@@ -443,6 +443,9 @@ export type Media = {
   save_status: MediaSaveStatus;
   recognition_status: MediaRecognitionStatus;
   link_status: MediaLinkStatus;
+  /** Pending work can continue briefly after recognition reports succeeded. */
+  link_pending_reason?: string | null;
+  local_safety?: LocalSafety | null;
   version: number;
   original_filename?: string | null;
   household_id?: string;

@@ -139,13 +139,13 @@ def test_configured_provider_returns_raw_text_without_an_extra_correction_layer(
     monkeypatch.setenv("MEDIA_OCR_MODEL", "ocr-test")
     monkeypatch.setenv("MEDIA_OCR_API_KEY", "secret-that-must-not-appear")
 
-    def opener(request, *, timeout):
+    def opener(request, timeout):
         assert request.full_url == "https://recognizer.invalid/ocr"
         assert request.get_header("Authorization") == "Bearer secret-that-must-not-appear"
         assert timeout > 0
         return FakeResponse('{"text":"药名 5mg"}'.encode("utf-8"))
 
-    monkeypatch.setattr(recognition.urllib.request, "urlopen", opener)
+    monkeypatch.setattr(recognition, "_open_request", opener)
     result = recognize_file(
         path,
         kind="image",
@@ -168,9 +168,9 @@ def test_empty_provider_text_is_a_non_retryable_recognition_failure(tmp_path, mo
 
     with pytest.raises(RecognitionError) as exc_info:
         monkeypatch.setattr(
-            recognition.urllib.request,
-            "urlopen",
-            lambda request, *, timeout: FakeResponse(b'{"text":"   "}'),
+            recognition,
+            "_open_request",
+            lambda request, timeout: FakeResponse(b'{"text":"   "}'),
         )
         recognize_file(
             path,
@@ -202,10 +202,10 @@ def test_provider_failures_have_stable_safe_categories(tmp_path, monkeypatch, er
     monkeypatch.setenv("MEDIA_ASR_MODEL", "asr-test")
     monkeypatch.setenv("MEDIA_ASR_API_KEY", "secret")
 
-    def opener(request, *, timeout):
+    def opener(request, timeout):
         raise error
 
-    monkeypatch.setattr(recognition.urllib.request, "urlopen", opener)
+    monkeypatch.setattr(recognition, "_open_request", opener)
     with pytest.raises(RecognitionError) as exc_info:
         recognize_file(
             path,
@@ -229,9 +229,9 @@ def test_invalid_provider_response_is_not_exposed_or_treated_as_empty_success(tm
 
     with pytest.raises(RecognitionError) as exc_info:
         monkeypatch.setattr(
-            recognition.urllib.request,
-            "urlopen",
-            lambda request, *, timeout: FakeResponse(b"not-json"),
+            recognition,
+            "_open_request",
+            lambda request, timeout: FakeResponse(b"not-json"),
         )
         recognize_file(
             path,
@@ -252,10 +252,10 @@ def test_provider_response_is_bounded(tmp_path, monkeypatch):
     monkeypatch.setenv("MEDIA_ASR_MODEL", "asr-test")
     monkeypatch.setenv("MEDIA_ASR_API_KEY", "secret")
 
-    def opener(request, *, timeout):
+    def opener(request, timeout):
         return FakeResponse(b"{" + b"x" * (2 * 1024 * 1024 + 1) + b"}")
 
-    monkeypatch.setattr(recognition.urllib.request, "urlopen", opener)
+    monkeypatch.setattr(recognition, "_open_request", opener)
     with pytest.raises(RecognitionError) as exc_info:
         recognize_file(
             path,
@@ -276,11 +276,11 @@ def test_real_audio_request_contains_only_a_safe_basename(tmp_path, monkeypatch)
     monkeypatch.setenv("MEDIA_ASR_API_KEY", "secret")
     captured = {}
 
-    def opener(request, *, timeout):
+    def opener(request, timeout):
         captured["body"] = request.data
         return FakeResponse('{"text":"原话"}'.encode("utf-8"))
 
-    monkeypatch.setattr(recognition.urllib.request, "urlopen", opener)
+    monkeypatch.setattr(recognition, "_open_request", opener)
     recognize_file(
         path,
         kind="audio",

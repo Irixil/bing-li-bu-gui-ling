@@ -1,5 +1,6 @@
-// P0 media wiring only. The recorder/VAD implementation in app.js stays unchanged.
-let mediaItems=[], uploadBusy=false, selectedPhoto=null;
+// P0 saved-media upload and recognition; no change to the VAD algorithm.
+let mediaItems=[], uploadBusy=false, selectedPhoto=null, pendingRecordingBlob=null;
+const recognitionBusy=new Set();
 const originalUrls=new Map();
 const mediaStatus=$('mediaStatus');
 const mediaLabel=m=>`${m.kind==='audio'?'录音':'照片'} · 原件${m.save_status==='saved'?'已保存':'尚未保存完整'} · ${({not_started:'待识别',processing:'识别处理中',succeeded:'文字已识别，待核对',failed:'识别失败',interrupted:'识别中断，可重试'})[m.recognition_status]||m.recognition_status}`;
@@ -72,19 +73,24 @@ async function uploadMedia(file,kind){
 }
 function showRecognition(m){
   const box=$('media-'+m.media_id)?.querySelector('.media-result');if(!box)return;
-  box.innerHTML=(m.recognition?.is_mock?'<p class="status error">离线 Mock 演示模式：不代表真实识别</p>':'')+safetyHtml(m.recognition?.local_safety)+`<div class="raw-box">${escapeHtml(m.recognition?.text||m.recognition?.error_message||'没有可用识别文字；原件保留')}</div>`;
+  box.innerHTML=(m.recognition?.is_mock?'<p class="status error">离线 Mock 演示模式：不代表真实识别</p>':'')+safetyHtml(m.local_safety||m.recognition?.local_safety)+`<div class="raw-box">${escapeHtml(m.recognition?.text||m.recognition?.error_message||'没有可用识别文字；原件保留')}</div>`;
   const rid=m.event_link?.record_id||m.record_id;
   if(rid){const b=document.createElement('button');b.className='primary';b.textContent='核对识别记录';b.onclick=()=>{showView('recordsView');showDetail(rid)};box.append(b);}
   else if(m.recognition_status==='succeeded'){
     const b=document.createElement('button');b.className='outline';b.textContent='恢复记录关联';
-    b.onclick=async()=>{try{await mediaRequest(`/api/media/${m.media_id}/link`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expected_version:m.version})});await loadMedia();await loadEvents();}catch(e){mediaMessage(e.message);}};box.append(b);
+    b.onclick=async()=>{b.disabled=true;try{const {media:latest}=await mediaRequest('/api/media/'+m.media_id);await mediaRequest(`/api/media/${m.media_id}/link`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expected_version:latest.version})});await loadMedia();const {media}=await mediaRequest('/api/media/'+m.media_id);showRecognition(media);await loadEvents();}catch(e){mediaMessage(e.message);b.disabled=false;}};box.append(b);
   }
 }
+function recognitionStillFinishing(m){
+  return m.recognition_status==='processing'||(m.recognition_status==='succeeded'&&!m.event_link?.record_id&&!m.record_id&&['safety_scan_pending','event_link_pending'].includes(m.link_pending_reason));
+}
 async function recognizeMedia(id){
+  if(recognitionBusy.has(id))return;
+  recognitionBusy.add(id);
   try{
     let {media:m}=await mediaRequest('/api/media/'+id);
-    if(m.recognition_status==='succeeded'){showRecognition(m);return;}
-    if(m.recognition_status!=='processing'){
+    if(m.recognition_status==='succeeded'&&!recognitionStillFinishing(m)){showRecognition(m);return;}
+    if(!['processing','succeeded'].includes(m.recognition_status)){
       const opKey='elder_media_recognize_v1:'+id;
       let op;try{op=JSON.parse(localStorage.getItem(opKey)||'null')}catch{}
       // Reuse uncertain submissions. A terminal failure needs a new attempt/version.
@@ -95,14 +101,17 @@ async function recognizeMedia(id){
     mediaMessage('识别处理中；原件已保存，可以稍后刷新查看');await loadMedia();
     for(let i=0;i<120;i++){
       const {media}=await mediaRequest('/api/media/'+id);
-      if(media.recognition_status!=='processing'){
+      if(!recognitionStillFinishing(media)){
         await loadMedia();showRecognition(media);await loadEvents();
         mediaMessage(media.recognition_status==='succeeded'?'识别文字已保留，请核对来源和内容':'识别失败或中断，原件仍可查看和重试');return;
       }
       await new Promise(resolve=>setTimeout(resolve,1000));
     }
-    mediaMessage('识别仍在后台处理，请稍后刷新；原件已保存');
+    await loadMedia();
+    const {media}=await mediaRequest('/api/media/'+id);showRecognition(media);
+    mediaMessage('识别或记录关联仍待完成，请稍后刷新或恢复关联；原件已保存');
   }catch(e){mediaMessage(e.message);await loadMedia();}
+  finally{recognitionBusy.delete(id);}
 }
 $('photoInput').onchange=e=>{
   selectedPhoto=e.target.files?.[0];if(!selectedPhoto)return;
@@ -112,17 +121,41 @@ $('photoInput').onchange=e=>{
 };
 $('savePhotoBtn').onclick=async()=>{if(uploadBusy)return;const m=await uploadMedia(selectedPhoto,'image');if(m){showView('archiveView');}};
 $('audioUploadInput').onchange=async e=>{const f=e.target.files?.[0];if(f){await uploadMedia(f,'audio');showView('archiveView');}};
-// Observe the final dataavailable/stop events, without changing silence timing or VAD.
+async function savePendingRecording(){
+  if(!pendingRecordingBlob||uploadBusy)return;
+  const retry=$('retryVoiceUploadBtn');retry.disabled=true;
+  const media=await uploadMedia(pendingRecordingBlob,'audio');
+  if(media){
+    pendingRecordingBlob=null;voiceUploadPending=false;setRecording(false);
+    retry.classList.add('hidden');$('voiceHint').textContent='原件已保存，可在看病资料核对识别文字';
+    await recognizeMedia(media.media_id);
+  }else{
+    retry.classList.remove('hidden');
+    $('voiceHint').textContent='录音尚未保存，请到看病资料重试上传，先不要刷新或关闭页面';
+  }
+  retry.disabled=false;
+}
+// Capture this recorder's array before a later recording can replace globals.
 $('finishVoiceBtn').onclick=()=>{
+  if(voiceUploadPending||voicePermissionPending)return;
   const recorder=mediaRecorder;
   if(!recorder||recorder.state==='inactive'){stopVoice('没有可上传录音，请先开启麦克风或上传已有录音');return;}
+  const recordingChunks=chunks;
+  voiceUploadPending=true;
   recorder.addEventListener('stop',async()=>{
-    const blob=new Blob(chunks,{type:recorder.mimeType});
-    if(blob.size){await uploadMedia(blob,'audio');showView('archiveView');}
-    else mediaMessage('未取得录音字节，请检查麦克风或上传已有录音');
+    const blob=new Blob(recordingChunks,{type:recorder.mimeType});
+    showView('archiveView');
+    if(blob.size){
+      pendingRecordingBlob=blob;
+      $('retryVoiceUploadBtn').classList.remove('hidden');
+      await savePendingRecording();
+    }
+    else {voiceUploadPending=false;setRecording(false);mediaMessage('未取得录音字节，请检查麦克风或上传已有录音');}
   },{once:true});
   stopVoice('正在保留这一段录音');
 };
+$('retryVoiceUploadBtn').onclick=savePendingRecording;
+window.addEventListener('beforeunload',e=>{if(voiceUploadPending){e.preventDefault();e.returnValue='';}});
 $('refreshMediaBtn').onclick=async()=>{await health();await loadMedia();};
 document.querySelectorAll('[data-view="archiveView"]').forEach(b=>b.addEventListener('click',loadMedia));
 health().then(loadMedia);

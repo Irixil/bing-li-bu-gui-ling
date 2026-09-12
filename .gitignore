@@ -31,3 +31,7 @@ coverage/
 *.png
 *.heic
 *.pdf
+
+# Reviewed, explicitly synthetic self-test samples only.
+!data/synthetic/selftest/voice.wav
+!data/synthetic/selftest/card.png

@@ -151,6 +151,8 @@ recognition_status: not_started | processing | succeeded | failed | interrupted
 link_status:        not_linked | pending | linked | link_failed
 ```
 
+`media.local_safety` 是媒体顶层的已持久化危险扫描结果，扫描前可以为 null；识别尝试里可能含兼容副本。识别状态已经 `succeeded` 时，安全扫描和 Event 关联仍可能在继续；此时 `link_pending_reason` 为 `safety_scan_pending` 或 `event_link_pending`，前端应继续轮询到 `linked`，或明确显示仍待处理。`raw_text_too_long`、`event_validation_failed` 等原因表示需要处理后才能关联，不得将有文字等同于已有记录。类型声明与实现保留这些可选字段。
+
 ### 查询媒体与读取原件
 
 - `GET /api/media` 返回 `200 {ok:true,media:[...]}`。

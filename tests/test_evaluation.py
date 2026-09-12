@@ -4,6 +4,14 @@ import json
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def isolate_evaluator_local_configuration(tmp_path, monkeypatch):
+    """CLI tests must never load the demo operator's real .env or credentials."""
+    from backend import evaluate_real
+    isolated_module = tmp_path / 'backend' / 'evaluate_real.py'
+    monkeypatch.setattr(evaluate_real, '__file__', str(isolated_module))
+
 from backend.evaluation import dataset_issues, evaluate_assertions, evaluate_dataset, passes, payload_for
 
 

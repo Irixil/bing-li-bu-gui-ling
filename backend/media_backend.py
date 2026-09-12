@@ -239,7 +239,9 @@ def create_default_media_backend(
         max_parts=positive("MEDIA_UPLOAD_MAX_PARTS"),
         # Mock is an explicit offline choice. A missing provider must remain
         # distinguishable from Mock and surface provider_not_configured.
-        recognition_provider=os.getenv("MEDIA_RECOGNITION_PROVIDER") or None,
+        # Resolve per-kind provider overrides at recognition time. An explicit
+        # LocalMediaBackend(recognition_provider=...) remains an explicit override.
+        recognition_provider=None,
         background=True,
     )
 

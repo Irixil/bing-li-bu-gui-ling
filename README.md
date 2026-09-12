@@ -2,7 +2,7 @@
 
 帮助老人把自己的健康情况记下来，整理成有原文、有来源、时间不确定也不会乱填的记录，在复诊时带着连续资料去沟通。
 
-当前交付是 **可运行的文本后端 + 已接入的本地媒体后端 + 公开病例演示数据**。媒体支持语音/照片原件上传、持久化、识别任务、识别失败保留、危险扫描和 Event 关联；前端仍由项目负责人开发，尚未在本主仓库完成浏览器整体验收。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
+当前集成候选包含 **老人端网页 + 文本后端 + 本地媒体后端 + 在线自测入口**。媒体支持语音/照片原件上传、持久化、识别任务、识别失败保留、危险扫描和 Event 关联；完整三轮在线浏览器验收仍待完成。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
 
 **团队只使用本仓库。** 历史多版本总包不属于当前开发包。代码底座保留最新持久化版本已有的记录、整理、核对、修订、历史和交接卡能力。
 
@@ -20,6 +20,8 @@
 录音已确认“长时间无声先提醒，无回应再暂停，保留内容并可接着说”。具体时间和检测方法待真机验证；此前 **60 秒强制结束要求已撤回**，不得写成默认值或拒收规则。
 
 ## 十分钟启动
+
+比赛演示请先按 [在线启动与完整自测指南](docs/DEMO-SELFTEST.md) 配置真实文字、ASR、OCR 服务。当前候选分支为 `codex/integration-demo-version`（PR #8），未合入 main。以下底层命令用于开发联调。
 
 安装 Python **3.12** 与 Git。在要放项目的目录中执行：
 
@@ -41,9 +43,9 @@ py -3.12 -m venv .venv
 
 如 PowerShell 不允许执行激活脚本，可直接使用 `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` 与 `.venv\Scripts\python.exe -m backend.run_local`。首次装依赖需要联网。
 
-访问 <http://127.0.0.1:18768/health> 应看到 `ok: true`。前端尚未构建时首页 `/` 可能返回 404；后端 API 仍可独立联调。数据库自动保存在 `runtime/records.sqlite3`。
+访问 <http://127.0.0.1:18768/health> 应看到 `ok: true`。本分支已包含老人端静态页面，首页 `/` 可直接打开。数据库自动保存在 `runtime/records.sqlite3`。
 
-复制 `.env.example` 后，文本整理和媒体识别的 Mock 都是显式的离线配置，不需要密钥、不调用外部 AI；页面必须明确标记为离线演示，不应对评委宣称为真实识别结果。未配置媒体 provider 时识别返回 `provider_not_configured`，不会静默改用 Mock。媒体写入口还要求在 `.env` 中配置三项正整数资源保护边界；未配置时可读取能力端点，但写入返回 `503 media_limits_not_configured`。密钥不进仓库。本版本真实模型调用已有有限成功证据，范围见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)，不代表完整语义或临床验收。
+`.env.example` 现为在线配置模板，需填真实凭据；只有显式 `--offline` 才使用无需密钥的 Mock，页面标记为离线演示。未配置媒体 provider 时识别返回 `provider_not_configured`，不会静默改用 Mock。比赛启动入口配置三项有限资源保护边界；底层开发入口未配置时可读取能力端点，但媒体写入返回 `503 media_limits_not_configured`。密钥不进仓库。本版本真实模型调用已有有限成功证据，范围见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)，不代表完整语义或临床验收。
 
 现在也支持 `MODEL_PROVIDER=openai_compatible` 接 OpenAI Chat Completions 兼容中转站，配置 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 即可。魔搭和 DeepSeek 旧配置保持兼容。配置方法和实际联调状态见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)。
 
@@ -92,7 +94,7 @@ curl http://127.0.0.1:18768/api/media/capabilities
 
 原文先入 SQLite，再执行本地危险规则，再请求 AI。模型断网、超时、非法 JSON 或其他异常时，原文和审计保留；若命中胸痛、呼吸困难等规则，仍返回固定危险提醒。成功结果继续经过原有结构、来源、时间和安全检查。
 
-后端流程已通过自动检查：保存 → 整理 → 核对记录 → 历史 → 修订 → 就诊交接材料；媒体流程也已通过本地文件/SQLite/Mock 的上传 → 识别 → 危险扫描 → Event 关联回归。**网页上的完整比赛 demo 尚未通过验收**，需要前端接入与实际浏览器演练。
+后端流程已通过自动检查：保存 → 整理 → 核对记录 → 历史 → 修订 → 就诊交接材料；媒体流程也已通过本地文件/SQLite/Mock 的上传 → 识别 → 危险扫描 → Event 关联回归。**网页上的完整比赛 demo 尚未通过验收**，仍需真实服务与完整逐按钮演练。
 
 本机演示只面向一个老人、一份本地数据库。服务只监听 127.0.0.1，旧兼容读取路径没有强制账号隔离；不要把它直接发布成公网多人服务。
 
@@ -137,12 +139,13 @@ curl http://127.0.0.1:18768/api/media/capabilities
 
 项目代码暂未授予通用开源许可证；团队可以从本仓库协作开发。公开病例改编资料的 CC BY 4.0 许可单独适用，不应混为整个仓库的许可证。
 
-## 比赛演示一键启动
+## 比赛演示启动和自测
 
-如果只需要本机离线演示（文字 + 媒体 Mock），可直接运行：
+复制 `.env.example` 为本地 `.env`，填写自己的真实服务配置，安装依赖及 FFmpeg 后：
 
 ```bash
-.venv312/bin/python -m scripts.start_demo
+python -m scripts.start_demo --check-config
+python -m scripts.start_demo
 ```
 
-它使用 `MODEL_PROVIDER=mock`、`MEDIA_RECOGNITION_PROVIDER=mock` 和有限的本地媒体资源边界；不会调用外部 AI。正式联调仍建议复制 `.env.example` 并显式配置。
+访问 http://localhost:18768/。默认缺配置拒绝启动，不静默降级 Mock。完整可复制命令、三轮真实 API 自测和逐按钮验收见 [DEMO-SELFTEST.md](docs/DEMO-SELFTEST.md)。仅离线回归时显式运行 `python -m scripts.start_demo --offline`，不能把它算作在线验收。
