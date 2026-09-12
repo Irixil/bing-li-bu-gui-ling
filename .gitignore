@@ -9,9 +9,24 @@ __pycache__/
 .DS_Store
 runtime/
 *.sqlite3*
+*.sqlite
+*.sqlite-*
 *.db
+*.db-*
 node_modules/
 frontend/dist/
 coverage/
 .coverage
 *.log
+
+# Local media samples and generated attachments must never enter Git.
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.pdf

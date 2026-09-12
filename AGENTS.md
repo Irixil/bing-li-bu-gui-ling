@@ -18,6 +18,10 @@ Project-local commands, architecture and stable conventions may be added outside
 
 ## Repository working conventions
 
+- Active MVP scope and proposed ownership: `docs/PROJECT-PLAN.md`. API truth: `docs/API.md` with `contracts/api.ts`; implementation lives in `backend/`.
+- B has claimed backend data/API ownership. Follow `docs/B-BACKEND-PLAN.md` and the frozen MVP stack in `docs/decisions/0001-backend-mvp-stack.md` for backend work.
+- Backend behavior is tested at the HTTP interface and the public `SQLiteStore` interface. Use one red-green vertical behavior at a time; mock only the external model provider.
+- Do not migrate the web framework, ORM or database during the competition MVP unless a new technical decision is explicitly accepted.
 - Start team assignments at `docs/team/README.md`: if the user says “任务 A / 文件、状态、API”, read `docs/team/TASK-A-MEDIA.md`; if they say “任务 B / ASR、OCR、识别”, read `docs/team/TASK-B-RECOGNITION.md`. Both read `docs/team/MEDIA-CONTRACT.md` and `docs/team/INTEGRATION.md`. Explain ownership, present status, dependencies and the first step before editing; the user confirms their route.
 - Active scope: `docs/PROJECT-PLAN.md` and the current team task documents. API truth for implemented behavior: `docs/API.md` with `contracts/api.ts`; the media contract in `docs/team/` is a proposal until explicitly frozen and implemented. Implementation lives in `backend/`.
 - Only the integration owner merges shared contract/dependency changes and reconciles branch DZ ledgers. Do not concatenate divergent journals or overwrite generated views; use the installed state tool after preserving and reconciling valid branch records. Each contributor supplies their own handoff and evidence.
