@@ -1,8 +1,10 @@
-# 前后端接口合同 v0.3
+# 前后端接口合同 v0.4
 
-本页描述现有文本接口。语音／照片上传与识别尚未实现，开发要求见 [团队入口](team/README.md)，拟议接口见 [媒体合同草案](team/MEDIA-CONTRACT.md)；不能把草案端点作为已可调用能力。实现 PR 必须同步本页、`contracts/api.ts` 和前端接线说明。
+本页描述现有文本接口，以及本轮已经由 `backend/server.py` 和 HTTP 专项测试固定的媒体接口。启动已经连接本地文件存储、SQLite 媒体状态和 B 的识别模块；需显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 才启用离线 Mock，未配置 provider 不会静默回退；真实 ASR/OCR、浏览器、手机和生产部署仍未验证。
 
-服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）。**只有创建记录要求 `Idempotency-Key`**；其余写入用 `expected_version` 防止覆盖。服务重启后重新获取 token。
+服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。JSON 写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）；媒体上传按下文使用 `multipart/form-data`。文本记录只有创建要求 `Idempotency-Key`；媒体创建、分片、完成和识别启动都要求各自的 `Idempotency-Key`。服务重启后重新获取 token。
+
+`organize`、`review`、`revise` 的 `expected_version` 都必须是正整数。缺失、布尔值、字符串、零或负数返回 `400 expected_version_must_positive_integer`；与当前版本不一致返回 `409 stale_version`。服务器不会替调用方自动选择最新版本。
 
 本 MVP 用单人本地会话，不发送 `X-Auth-Token`。已有 `/api/auth/*` 属于保留的账号兼容接口，不属于此次老人端必接合同，也不代表多家庭鉴权已安全完成。
 
@@ -18,17 +20,31 @@
 
 成功 `201`（重复幂等请求为 `200`）：`{ok:true, created:true|false, event}`。event 立即含 `raw_text`、`state:"inbox"`、`version:1`、`local_safety`。前端收到这个响应后就可以显示“已保存”，不要等 AI。
 
+完整 Event 包含：`record_id`、`raw_text`、`source_kind`、`actor_name`、`occurred_time`、`recorded_at`、`state`、`version`、`draft`、`result_meta`、`review_notes`、`related_record_ids`、`supersedes_id`、`created_at`、`updated_at`、`household_id`、`local_safety`、`confirmation_scope`。未整理时 `draft/result_meta` 为 null；只有状态为 `recorded` 时 `confirmation_scope` 为 `record_accuracy`。本地单人 MVP 的前端不要根据 `household_id` 构建账号或家庭功能。
+
 `raw_text` 必填，最多 10000 字符；`actor_name` 必填，最多 80 字符。`source_kind` 必填，可用 `elder`、`document`、`family_observation`、`family_report`、`caregiver`、`clinician_evidence`、`audio_transcript`、`system`、`unknown`。老人手输用 elder；公开论文摘要用 document，不能冒充亲口自述。
 
-可选 `occurred_time:string|null`、`related_record_ids:string[]`（最多 10 个已存在记录 ID）。不要传 `recorded_at`，让服务器记录输入时间；不知道发生时间就不填。新记录 ID 由后端生成。
+可选 `occurred_time:string|null`、`related_record_ids:string[]`（最多 10 个已存在记录 ID）。`occurred_time` 如果提供了非字符串、非 null 值，返回 `400 occurred_time_required`。不要传 `recorded_at`，让服务器记录输入时间；创建或修订时传入该字段会返回 `400 recorded_at_read_only`。不知道发生时间就不填。新记录 ID 由后端生成。
 
 每次新建先生成 `crypto.randomUUID()` 作为幂等键，同一请求超时重试必须复用原键和原请求体。同键不同内容返回 409；用户新建另一条记录使用新键，即使文字相同也保留两条。
 
 ### `POST /api/events/{record_id}/organize` 整理
 
-请求：`{"expected_version":1}`。成功 `200`，event 变为 `draft`、版本加一，并返回 `output`、`provider`、`ai_failed:false`。output 是 `event-v0.3` 草稿，仍需人工核对。
+请求：`{"expected_version":1}`。可选 `actor_name`；省略时使用“本地用户”，如果提供，必须是非空字符串且最多 80 字符。成功 `200`，event 变为 `draft`、版本加一，并返回 `ok:true`、`ai_failed:false`、`event`、`output`、`provider`、`trace_id`、`prompt_version`、`schema_version`、`latency_ms`、`safety_guard_applied`、`raw_text_preserved:true`、`local_safety` 及扁平安全字段。output 是 `event-v0.3` 草稿，仍需人工核对；`event.draft` 与本次保存的 output 一致。后端持久化接缝会再校验草稿的 Schema、来源、记录 ID、时间和结果元数据，不会保存绕过 `event-v0.3` 规则的输出。
 
 AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、`raw_text_preserved:true`、`ai_failed:true`、`failure_reason`、`local_safety` 和扁平的 `danger_detected/escalation_level/review_role/danger_reminder`。第一次整理失败时 event 保持 `inbox`，没有伪造 draft。若旧草稿已存在，失败保留原版本和旧草稿；页面必须注明本次重新整理失败，不能把旧结果当成本次成功。危险原文仍可用详情和历史接口查询。
+
+C 部分修订：成功响应及 `event.result_meta` 增加 `model_id`、`prompt_sha256`、`input_sha256`，失败响应与审计也包含这些标识（配置不可读时模型标识为空）。旧记录可能没有新增字段；它们用于开发核查，前端主流程无需展示。提示词版本以 `prompts/VERSION` 为准，哈希覆盖实际拼接的提示词与 Schema，输入哈希覆盖实际发送的原文证据对象。历史草稿和核对备注不会作为新一轮模型证据发送。
+
+通用模型适配后的 422 可额外包含 `failure_code` 和 `provider_http_status`。模型 401/403 展示鉴权或访问权限失败，429 展示限流或额度不足；超时、截断和协议错误有固定原因。它们是下游模型状态，前端仍按 HTTP 422 的原文保真合同处理，不当成当前本地用户登录失效。未知异常不回显原始错误体。
+
+魔搭官方明确返回未绑定阿里云账号时，使用 `failure_code=model_account_binding_required`、`failure_reason=魔搭账号需先绑定阿里云账号`，仍保留 `provider_http_status`。这是精确已知错误的白名单映射，不是把所有 401 都解释为绑定问题。
+
+当前采用结构整理：`summary` 保留完整当前原文，`claims` 逐条保留所引用记录的完整原文，只允许去除外围空白；追问限制为固定中性模板。模型分类和冲突候选仍需核对。自由摘要和片段截取无法通过证据校验时返回 422；界面继续显示原文，不把失败解释为输入无效或医学正常。没有后端 `occurred_time` 时保持 `time.occurred=null`，原文中的时间表达完整保留。
+
+规则升级时，旧记录按新规则重新扫描，旧版本已出现的提醒仍保留，旧数据库证据和历史快照不改写。`local_safety` 可增加 `previous_rule_version`、`previous_danger_detected`、`previous_matched_rules`、`historical_notice_preserved`。最后一项为 true 表示新规则未命中但旧提醒仍在；此时本地 `emergency` 可以与 AI 草稿的 `none` 并存，页面必须显示“历史记录曾触发提醒”，不能只看草稿降级。旧交接卡保持生成时快照；查看最新规则结果应读取事件或重新生成交接材料。每次规则行为变化必须升级规则版本。
+
+新增 `local_safety.clinical_review_flags/clinical_review_required/clinical_review_role/clinical_review_notice/clinical_review_version/clinical_review_status` 为可选兼容字段。`offline-review-flags-v1` 仅对带明确心率指标、分钟单位的 `0 < 数值 <= 40` 表达生成 `low_heart_rate_candidate`；这是工程复核线索，不是医学阈值认证。历史、否定和假设也可能标记，状态始终为 `candidate_unverified`，没有匹配为 `not_flagged`，不得显示“医学正常”。标记会随保存/详情/失败响应保留；新成功草稿至少路由专业复核，既有急救级别优先。记录确认不能清除交接中的 `clinical_measurement_review_required`。旧候选版本变化时可带 `previous_clinical_review_version/previous_clinical_review_flags/historical_clinical_review_preserved`，保留历史待核线索和旧证据；旧卡仍是历史快照。上线前医学审阅清单见 [临床规则草案](CLINICAL-RULE-DRAFT.md)。
 
 ```json
 {
@@ -45,15 +61,15 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 }
 ```
 
-上面省略了完整 `event`、`local_safety`、`trace_id` 和审计元数据以便阅读，实际响应包含它们。可以从历史的 `audit` 看到失败类型和原因。前端应先解析 JSON 再处理 `response.ok`，不能遇到非 2xx 就丢掉响应体。
+上面省略了完整 `event`、`local_safety`、`trace_id` 和审计元数据以便阅读，实际响应还包含 `failure_type`、`failure_cause_type`、`raw_text_sha256`、`prompt_version`、`schema_version`。这些字段用于问题追踪和审计关联；普通页面应依赖 `error`、`failure_reason`、`event`、`raw_text_preserved`、`local_safety` 与扁平安全字段，不应根据异常类名决定用户流程。可以从历史的 `audit` 看到失败类型和原因。前端应先解析 JSON 再处理 `response.ok`，不能遇到非 2xx 就丢掉响应体。
 
 ### `POST /api/events/{record_id}/review` 核对
 
-请求：`{"expected_version":2,"action":"confirm","note":"仅确认记录准确"}`。成功 `200`，event 变为 `recorded`。`confirm` 只表示原文/整理是否记录准确，不能表示医生确认，也不能消除 `local_safety` 危险状态。退回时用 `action:"return"`，必须带原因。
+请求：`{"expected_version":2,"action":"confirm","note":"仅确认记录准确"}`。`actor_name` 规则与整理接口一致；`note` 若提供必须是字符串，非字符串返回 `400 note_required`。成功 `200`，event 变为 `recorded`。`confirm` 只表示原文/整理是否记录准确，不能表示医生确认，也不能消除 `local_safety` 危险状态。退回时用 `action:"return"`，必须带原因。
 
 ### `POST /api/events/{record_id}/revise` 修订
 
-请求带新 `raw_text`、`source_kind`、`actor_name`、`expected_version`、`reason`。成功 `201` 返回 `{ok:true,event:新记录}`。旧版本标记为 `superseded` 并留在历史，新版本重新扫描危险描述；旧原文不覆盖。新记录 version 从 1 开始，`supersedes_id` 指向旧记录，后续用新 ID 整理与核对。
+请求带新 `raw_text`、`source_kind`、`actor_name`、`expected_version`、`reason`；`actor_name` 必填，非空且最多 80 字符。成功 `201` 返回 `{ok:true,event:新记录}`。旧版本标记为 `superseded` 并留在历史，新版本重新扫描危险描述；旧原文不覆盖。新记录 version 从 1 开始，`supersedes_id` 指向旧记录，后续用新 ID 整理与核对。
 
 ### `GET /api/events`、`GET /api/events/{id}`、`GET /api/events/{id}/history`
 
@@ -63,11 +79,111 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 
 ### `POST /api/handoffs`、`GET /api/handoffs/{id}`
 
-生成请求体 `{}`，返回 `201 {ok:true,handoff}`；读取返回 `200 {ok:true,handoff}`。handoff 包含 `handoff_id`、`created_at`、`items`、`unresolved_count`。每个 item 是完整 Event，加上 `unresolved` 和 `unresolved_reasons`。
+生成请求体必须严格为 `{}`，非空对象返回 `400 handoff_body_must_be_empty_object`。成功返回 `201 {ok:true,handoff}`；读取返回 `200 {ok:true,handoff}`。handoff 包含 `handoff_id`、`created_at`、`household_id`、`items`、`unresolved_count`。每个 item 是完整 Event，加上 `unresolved` 和 `unresolved_reasons`。本地单人前端不使用 `household_id`；它只是兼容层归属信息。
 
 危险记录会带 `unresolved:true`、`unresolved_reasons` 中的 `local_danger_detected`；核对记录不会把它清掉。未核对、用药/医嘱、专业复核要求、升级和冲突也会成为未解决原因；不要自行把这些字段清空。
 
 卡片是生成时的快照。后续修订不会修改旧卡片；希望显示最新内容需要重新 POST 生成。当前不直接提供 PDF 或真正的分享链接，前端负责可读页面或浏览器打印。
+
+## 媒体 HTTP 适配器
+
+当前可验证范围包括默认本地后端的文件存储、SQLite 状态、识别编排，以及 HTTP 的 session/Origin 保护、上传与分片重放、原件读取与 Range、异步识别入口。HTTP 专项测试仍使用替身隔离解析层，默认后端另有组合测试；真实 ASR/OCR、浏览器和手机仍未验收。
+
+所有媒体写请求带 `X-Session-Token` 和 `Idempotency-Key`；带 JSON 正文的请求使用 `application/json`，上传步骤使用 `multipart/form-data`。创建上传、上传分片和完成上传都会持久化幂等信息并检查冲突；同一次可重试请求应复用同一键和完全相同的内容，下一步操作使用新键。
+
+媒体能力由 `GET /api/media/capabilities` 公开。必须配置合法正整数 `MEDIA_UPLOAD_MAX_BYTES`、`MEDIA_UPLOAD_PART_MAX_BYTES`、`MEDIA_UPLOAD_MAX_PARTS` 才能写入媒体；任一缺失或非法时写入口返回 `503 media_limits_not_configured`。`MEDIA_REQUEST_MAX_BYTES` 仍可作为额外的 multipart 请求保护上限。所有这些都是资源保护边界，不是产品文件大小、录音时长或图片像素限制。
+
+### `GET /api/media/capabilities` 能力发现
+
+成功返回 `200`：
+
+```json
+{
+  "ok": true,
+  "capabilities": {
+    "enabled": true,
+    "disabled_reason": null,
+    "max_total_bytes": 1048576,
+    "max_part_bytes": 1048576,
+    "max_parts": 16,
+    "max_audio_duration_seconds": null,
+    "max_image_pixels": null,
+    "audio_content_types": ["audio/wav", "audio/webm"],
+    "image_content_types": ["image/png", "image/jpeg"],
+    "multipart_upload": true,
+    "resumable_parts": true
+  }
+}
+```
+
+未配置或配置非法时仍返回 `200`，但 `capabilities.enabled=false`、`disabled_reason="media_limits_not_configured"`，所有媒体写请求返回 `503`。音频时长和图片像素保持 `null`；当前真实设备格式、时长、像素和大文件性能仍未验证。
+
+### `POST /api/media/uploads` 创建上传元数据
+
+请求是 `multipart/form-data`，这一步**不带文件**。字段为：
+
+| 字段 | 当前形状 |
+|---|---|
+| `kind` | `audio` 或 `image` |
+| `content_type` | 预期媒体 MIME，例如 `audio/webm`、`image/png` |
+| `total_parts` | 十进制整数；片段索引随后使用 `0..total_parts-1` |
+| `actor_name` | 可选上传人；省略为“老人”，最多 80 字符 |
+| `occurred_time` | 可选发生时间字符串；未知时省略 |
+| `original_filename` | 可选展示名；不能作为服务端路径 |
+| `expected_size` | 可选十进制整数 |
+| `expected_sha256` | 可选 SHA-256 |
+
+首次返回 `201 {ok:true,created:true,upload}`；相同请求重放返回 `200` 且 `created:false`。`upload` 至少包含 `upload_id`、`media_id`、`kind`、`content_type`、`total_parts`、`status:"uploading"`。创建元数据不表示原件已保存，媒体在完成前不能显示“上传成功”。
+
+### `POST /api/media/uploads/{upload_id}/parts/{index}` 上传片段
+
+请求是 `multipart/form-data`，并且只能有一个名为 `file` 的文件字段，不能夹带其他文本字段。第一个片段索引为 `0`。首次返回 `201 {ok:true,created:true,part}`；重放同一片返回 `200` 且 `created:false`。`part` 至少包含 `upload_id`、`index` 和 `size_bytes`。同一幂等键或同一片索引改成其他内容属于冲突，不得覆盖已保存片段。
+
+### `POST /api/media/uploads/{upload_id}/complete` 完成上传
+
+请求当前必须是 JSON 空对象 `{}`；**不要发送**早期草案中的 `expected_version` 或 `part_count`，片段总数已经在创建上传时声明。请求仍必须带 `Idempotency-Key`。完成步骤会持久化该键及最终上传摘要：同一上传、同一摘要的重放返回 `200 created:false`；同键用于另一上传或不同最终摘要返回 `409 idempotency_key_payload_mismatch`。所有片段存在并完成后，首次返回 `201 {ok:true,created:true,media}`；只有响应中 `media.save_status="saved"` 才能显示“原件已保存”。缺片返回 `409 upload_incomplete`。
+
+公共 `media` 不包含服务端路径或原件字节，核心字段为 `media_id`、`kind`、`content_type`、`size_bytes`、`sha256`、`save_status`、`recognition_status`、`link_status` 和 `version`。当前持久化层还会返回 `original_filename`、上传进度、`attempts`、当前 `recognition` 和 `event_link`；实现还保留了兼容别名 `upload_status`，前端应以 `save_status` 为准。状态集合为：
+
+```text
+save_status:        uploading | saved | failed
+recognition_status: not_started | processing | succeeded | failed | interrupted
+link_status:        not_linked | pending | linked | link_failed
+```
+
+`media.local_safety` 是媒体顶层的已持久化危险扫描结果，扫描前可以为 null；识别尝试里可能含兼容副本。识别状态已经 `succeeded` 时，安全扫描和 Event 关联仍可能在继续；此时 `link_pending_reason` 为 `safety_scan_pending` 或 `event_link_pending`，前端应继续轮询到 `linked`，或明确显示仍待处理。`raw_text_too_long`、`event_validation_failed` 等原因表示需要处理后才能关联，不得将有文字等同于已有记录。类型声明与实现保留这些可选字段。
+
+### 查询媒体与读取原件
+
+- `GET /api/media` 返回 `200 {ok:true,media:[...]}`。
+- `GET /api/media/{media_id}` 返回 `200 {ok:true,media}`，是识别轮询入口；识别尝试列表位于 `media.attempts`，详情可包含完整机器初稿，列表不返回完整文字。
+- `GET /api/media/{media_id}/original` 必须带 `X-Session-Token`，返回原件字节和媒体 `Content-Type`，并声明 `Accept-Ranges: bytes`。
+
+原件读取支持单个 `Range: bytes=start-end`、`bytes=start-` 或 `bytes=-length`；成功为 `206` 并带 `Content-Range`，非法范围为 `416 invalid_range`。token 不得放进 URL。HTTP 专项测试覆盖了按 ID 读取和路径穿越拒绝，但真实浏览器 Blob 播放、手机媒体格式、超大原件的内存表现和磁盘完整性故障仍未验收。
+
+### `POST /api/media/{media_id}/recognize` 启动识别
+
+请求为：
+
+```json
+{"expected_version":1,"actor_name":"老人"}
+```
+
+`actor_name` 可选，省略时后端使用“本地用户”。新识别任务入口返回 `202 {ok:true,accepted:true,attempt_id,media}`；同一请求重放、已有处理中任务仍返回 `202` 和同一 `attempt_id`；已有成功结果的重放返回 `200`，不重新识别。`202` 只表示任务已经接受或处于处理中，**不表示识别成功**。前端随后轮询媒体详情的 `recognition_status`，不能等待这个 POST 返回识别全文。
+
+识别结果若含 `recognition.is_mock:true`，页面必须明确写“离线 Mock 演示模式”，不能冒充真实 ASR/OCR。Mock 不证明音频或图片内容被真实识别。本轮尚未验证真实 ASR/OCR、浏览器和手机；失败后原件仍应通过原件接口可读。`POST /api/media/{media_id}/link` 可复用已经保存的成功初稿恢复 Event 关联，不会再次调用识别服务。
+
+### `POST /api/media/{media_id}/link` 恢复 Event 关联
+
+当前请求必须带正整数 `expected_version`，也可带可选的 `actor_name`：
+
+```json
+{"actor_name":"老人","expected_version":6}
+```
+
+请求必须带新的 `Idempotency-Key`；版本过期返回 `409 stale_version`。该接口只复用已持久化的成功初稿，不再次调用识别；首次创建 Event 返回 `201`，已有链接或重复恢复返回 `200`。识别未成功、危险扫描未完成或全文超过 10000 字符时不会创建空 Event，并保留媒体和可恢复状态。
+
+媒体常见错误为 `{ok:false,error:"稳定错误码"}`，包括 `media_limits_not_configured`、`request_too_large`、`unsupported_format`、`media_not_found`、`upload_not_found`、`upload_incomplete`、`idempotency_key_payload_mismatch`、`stale_version`、`provider_not_configured`、`provider_timeout`、`invalid_range`、`media_backend_unavailable` 和 `media_request_failed`。不要向用户展示路径、供应商原始正文或内部异常。
 
 ## 状态和常见错误
 
@@ -79,7 +195,9 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 | needs_review | 已退回待整理 | 重新整理、修订 |
 | superseded | 已被新记录替代 | 查看旧原文和历史 |
 
-所有状态都不是医学安全等级。200/201 为成功；400 为字段或请求格式错误；403 为本地 token/Origin 错误；404 为记录不存在；409 为版本、状态或幂等键冲突；422 为整理失败。一般错误格式 `{ok:false,error:"错误码"}`。数据库本身无法保存时，不能显示“已保存”。
+所有状态都不是医学安全等级。200/201 为成功；400 为字段或请求格式错误；403 为本地 token/Origin 错误；404 为记录不存在；409 为版本、状态或幂等键冲突；422 为整理失败；500 为未预期的服务端错误。一般错误格式 `{ok:false,error:"错误码"}`。未预期异常只返回 `internal_server_error`，不会向客户端暴露数据库路径、供应商正文或内部异常信息。数据库本身无法保存时，不能显示“已保存”。
+
+浏览器不使用开发代理而直接跨域访问时，后端 `.env` 的 `ALLOWED_ORIGIN` 必须与页面 Origin 完全一致。预检支持 `GET, POST, OPTIONS`，并允许 `Content-Type`、`Idempotency-Key`、`X-Session-Token`、原件读取使用的 `Range` 和兼容账号接口使用的 `X-Auth-Token`。不匹配的 Origin 不会获得跨域许可，写请求返回 403。
 
 ## 前端必须怎么处理
 

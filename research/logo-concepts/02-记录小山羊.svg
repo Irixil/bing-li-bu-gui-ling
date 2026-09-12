@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" role="img" aria-labelledby="title desc">
+  <title id="title">记录小山羊</title>
+  <desc id="desc">从圆角病历卡后探出的 Q 版小山羊</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EEF0FF"/><stop offset="1" stop-color="#FFF2E5"/></linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F5F3FF"/></linearGradient>
+  </defs>
+  <circle cx="240" cy="240" r="220" fill="url(#bg)"/>
+  <rect x="106" y="118" width="268" height="248" rx="48" fill="url(#paper)" stroke="#5954F6" stroke-width="9"/>
+  <path d="M145 295c33-26 66-26 98 0s65 26 98 0" fill="none" stroke="#B7B4FF" stroke-width="14" stroke-linecap="round"/>
+  <path d="M145 295c33 26 66 26 98 0s65-26 98 0" fill="none" stroke="#5954F6" stroke-width="7" stroke-linecap="round" opacity=".55"/>
+  <circle cx="145" cy="295" r="10" fill="#F2B67D"/>
+  <path d="M175 185c-25-5-43-20-53-45 26 1 49 10 63 29" fill="#F2B67D" stroke="#16143D" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M305 185c25-5 43-20 53-45-26 1-49 10-63 29" fill="#F2B67D" stroke="#16143D" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M190 180c-1-38 17-67 50-67s51 29 50 67l-6 49c-4 29-23 47-44 47s-40-18-44-47z" fill="#FFFDF9" stroke="#16143D" stroke-width="8"/>
+  <path d="M211 141c8-20 18-29 29-29s21 9 29 29c-16-7-42-7-58 0" fill="#F2B67D" stroke="#16143D" stroke-width="8" stroke-linejoin="round"/>
+  <circle cx="218" cy="190" r="7" fill="#16143D"/><circle cx="262" cy="190" r="7" fill="#16143D"/>
+  <path d="M232 211c5 5 11 5 16 0" fill="none" stroke="#16143D" stroke-width="6" stroke-linecap="round"/>
+  <path d="M176 349h128" stroke="#F2B67D" stroke-width="8" stroke-linecap="round" opacity=".8"/>
+</svg>

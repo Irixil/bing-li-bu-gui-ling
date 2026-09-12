@@ -1,8 +1,11 @@
-import os, tempfile, threading
+import copy, os, tempfile, threading
+
+import pytest
+
 from backend.store import SQLiteStore, Conflict, StoreError
 
-def draft(recorded=None, kind='symptom', escalation='none', conflict=False, review_role='family'):
- return {'output': {'schema_version':'event-v0.3','event_kind':kind,'summary':'记录','time':{'occurred':None,'recorded':recorded,'certainty':'relative'},'claims':[],'review_required':True,'review_role':review_role,'escalation_level':escalation,'conflict':{'present':conflict,'record_refs':[]},'provenance_preserved':True,'plan_change_allowed':False,'follow_up_questions':[],'forbidden_actions':[]},'trace_id':'t','provider':'MockProvider','prompt_version':'p','schema_version':'s','latency_ms':1}
+def draft(event, kind='symptom', escalation='none', conflict=False, review_role='family'):
+ return {'ok':True,'ai_failed':False,'output': {'schema_version':'event-v0.3','event_kind':kind,'summary':event['raw_text'],'time':{'occurred':event['occurred_time'],'recorded':event['recorded_at'],'certainty':'relative'},'claims':[{'text':event['raw_text'],'source_kind':event['source_kind'],'record_id':event['record_id'],'quote':event['raw_text']}],'review_required':True,'review_role':review_role,'escalation_level':escalation,'conflict':{'present':conflict,'record_refs':[]},'provenance_preserved':True,'plan_change_allowed':False,'follow_up_questions':[],'forbidden_actions':[]},'trace_id':'tr_test','provider':'MockProvider','prompt_version':'prompt-v0.4','schema_version':'event-v0.3','latency_ms':1,'safety_guard_applied':False}
 def payload(text='女儿观察：今天头晕', actor='女儿'):
  return {'raw_text':text,'source_kind':'family_observation','actor_name':actor}
 def test_persistence_and_state_machine():
@@ -12,13 +15,13 @@ def test_persistence_and_state_machine():
   try:s.create({**payload(),'raw_text':'changed'},'k1'); raise AssertionError
   except Conflict: pass
   for bad in (None, True, 0, '1'):
-   try:s.organize(e['record_id'],bad,draft(),'x'); raise AssertionError
+   try:s.organize(e['record_id'],bad,draft(e),'x'); raise AssertionError
    except StoreError: pass
   try:s.review(e['record_id'],1,'confirm','儿子',''); raise AssertionError
   except Conflict: pass
-  e=s.organize(e['record_id'],1,draft(e['recorded_at']),'system'); assert e['state']=='draft' and e['version']==2
+  e=s.organize(e['record_id'],1,draft(e),'system'); assert e['state']=='draft' and e['version']==2
   e=s.review(e['record_id'],2,'confirm','儿子','确认记录准确'); assert e['state']=='recorded' and e['version']==3
-  try:s.organize(e['record_id'],3,draft(),'system'); raise AssertionError
+  try:s.organize(e['record_id'],3,draft(e),'system'); raise AssertionError
   except Conflict: pass
   try:s.review(e['record_id'],3,'confirm','女儿','重复确认'); raise AssertionError
   except Conflict: pass
@@ -34,13 +37,25 @@ def test_persistence_and_state_machine():
   # Same optimistic version: at most one thread can transition.
   x,_=s2.create(payload('并发测试'),'parallel'); results=[]
   def worker():
-   try: results.append(('ok',s2.organize(x['record_id'],1,draft(),'x')['version']))
+   try: results.append(('ok',s2.organize(x['record_id'],1,draft(x),'x')['version']))
    except Exception as ex: results.append((type(ex).__name__,str(ex)))
   ts=[threading.Thread(target=worker) for _ in range(2)]
   [t.start() for t in ts]; [t.join() for t in ts]
   assert sum(r[0]=='ok' for r in results)==1, results
   assert sum(r[0]=='Conflict' for r in results)==1, results
   # Clinical risk is still unresolved after family confirmation.
-  risk,_=s2.create(payload('老人胸痛'),'risk'); r=s2.organize(risk['record_id'],1,draft(risk['recorded_at'],escalation='emergency',review_role='emergency_services'),'system'); r=s2.review(r['record_id'],2,'confirm','家属','确认记录准确'); hh=s2.handoff(); item=next(i for i in hh['items'] if i['record_id']==r['record_id']); assert item['unresolved'] and 'escalation_not_cleared' in item['unresolved_reasons']
+  risk,_=s2.create(payload('老人胸痛'),'risk'); r=s2.organize(risk['record_id'],1,draft(risk,escalation='emergency',review_role='emergency_services'),'system'); r=s2.review(r['record_id'],2,'confirm','家属','确认记录准确'); hh=s2.handoff(); item=next(i for i in hh['items'] if i['record_id']==r['record_id']); assert item['unresolved'] and 'escalation_not_cleared' in item['unresolved_reasons']
  print('PERSISTENCE_TEST_PASS state_machine=1 immutable=1 restart=1 concurrency=1 handoff=1')
+
+@pytest.mark.parametrize('invalid_case', ['schema','record_id','recorded_time','metadata'])
+def test_public_organize_refuses_unvalidated_drafts_and_result_metadata(tmp_path, invalid_case):
+ s=SQLiteStore(tmp_path/'records.sqlite3'); event,_=s.create(payload(),invalid_case); result=copy.deepcopy(draft(event))
+ if invalid_case=='schema':result['output']['claims']=[]
+ if invalid_case=='record_id':result['output']['claims'][0]['record_id']='rec_invented'
+ if invalid_case=='recorded_time':result['output']['time']['recorded']='2000-01-01T00:00:00+00:00'
+ if invalid_case=='metadata':result.pop('provider')
+ with pytest.raises(StoreError,match='^validated_output_required$'):
+  s.organize(event['record_id'],1,result,'system')
+ unchanged=s.get(event['record_id']); assert unchanged['state']=='inbox' and unchanged['version']==1 and unchanged['draft'] is None and unchanged['result_meta'] is None
+
 if __name__=='__main__': test_persistence_and_state_machine()

@@ -10,6 +10,7 @@ import hashlib
 import base64
 import hmac
 import json
+import math
 import secrets
 import sqlite3
 import threading
@@ -28,9 +29,9 @@ def uid(prefix=''):
 
 
 try:
-    from .safety import scan_danger
+    from .safety import scan_danger, reconcile_safety
 except ImportError:
-    from safety import scan_danger
+    from safety import scan_danger, reconcile_safety
 
 class StoreError(RuntimeError):
     status = 400
@@ -55,6 +56,24 @@ class Forbidden(StoreError):
 SOURCES = {
     'elder', 'family_observation', 'family_report', 'caregiver',
     'clinician_evidence', 'document', 'audio_transcript', 'system', 'unknown',
+}
+MEDIA_KINDS = {'audio', 'image'}
+MEDIA_SAVE_STATES = {'uploading', 'saved', 'failed'}
+MEDIA_RECOGNITION_STATES = {
+    'not_started', 'processing', 'succeeded', 'failed', 'interrupted',
+}
+MEDIA_LINK_STATES = {'not_linked', 'pending', 'linked', 'link_failed'}
+RECOGNITION_FAILURES = {
+    'provider_not_configured': ('识别服务未配置', False),
+    'unsupported_format': ('不支持的媒体类型或格式', False),
+    'invalid_media': ('媒体文件无效或无法读取', False),
+    'limit_exceeded': ('媒体超过当前识别服务的资源限制', False),
+    'no_text_detected': ('没有识别到可用文字', False),
+    'provider_timeout': ('识别服务超时，可稍后重试', True),
+    'provider_unavailable': ('识别服务暂时不可用，可稍后重试', True),
+    'provider_auth_failed': ('识别服务鉴权失败，请检查配置', False),
+    'provider_rate_limited': ('识别服务请求过于频繁，可稍后重试', True),
+    'invalid_provider_response': ('识别服务返回了无法使用的结果', False),
 }
 SNAPSHOT_FIELDS = (
     'record_id', 'raw_text', 'source_kind', 'actor_name', 'occurred_time',
@@ -196,6 +215,97 @@ class SQLiteStore:
                     ON events(recorded_at, created_at);
                 CREATE INDEX IF NOT EXISTS audit_event_order
                     ON audit(record_id, at);
+                CREATE TABLE IF NOT EXISTS media (
+                    media_id TEXT PRIMARY KEY,
+                    household_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    original_filename TEXT NOT NULL,
+                    actor_name TEXT NOT NULL DEFAULT '老人',
+                    occurred_time TEXT,
+                    save_status TEXT NOT NULL DEFAULT 'uploading',
+                    recognition_status TEXT NOT NULL DEFAULT 'not_started',
+                    link_status TEXT NOT NULL DEFAULT 'not_linked',
+                    link_pending_reason TEXT,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    size_bytes INTEGER,
+                    sha256 TEXT,
+                    relative_path TEXT,
+                    saved_at TEXT,
+                    safety_json TEXT,
+                    current_attempt_id TEXT,
+                    upload_error_code TEXT,
+                    upload_error_message TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(household_id) REFERENCES households(household_id)
+                );
+                CREATE TABLE IF NOT EXISTS media_uploads (
+                    upload_id TEXT PRIMARY KEY,
+                    media_id TEXT NOT NULL UNIQUE,
+                    idem_key TEXT NOT NULL UNIQUE,
+                    payload_hash TEXT NOT NULL,
+                    expected_parts INTEGER NOT NULL,
+                    expected_size INTEGER,
+                    expected_sha256 TEXT,
+                    complete_idem_key TEXT,
+                    complete_payload_hash TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(media_id) REFERENCES media(media_id)
+                );
+                CREATE TABLE IF NOT EXISTS media_upload_parts (
+                    upload_id TEXT NOT NULL,
+                    part_index INTEGER NOT NULL,
+                    idem_key TEXT,
+                    relative_path TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(upload_id, part_index),
+                    FOREIGN KEY(upload_id) REFERENCES media_uploads(upload_id)
+                );
+                CREATE TABLE IF NOT EXISTS media_upload_idempotency (
+                    idem_key TEXT PRIMARY KEY,
+                    payload_hash TEXT NOT NULL,
+                    upload_id TEXT NOT NULL,
+                    FOREIGN KEY(upload_id) REFERENCES media_uploads(upload_id)
+                );
+                CREATE TABLE IF NOT EXISTS recognition_attempts (
+                    attempt_id TEXT PRIMARY KEY,
+                    media_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    provider TEXT,
+                    model TEXT,
+                    is_mock INTEGER,
+                    text TEXT,
+                    error_code TEXT,
+                    error_message TEXT,
+                    retryable INTEGER,
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(media_id) REFERENCES media(media_id)
+                );
+                CREATE TABLE IF NOT EXISTS recognition_requests (
+                    idem_key TEXT PRIMARY KEY,
+                    payload_hash TEXT NOT NULL,
+                    attempt_id TEXT NOT NULL,
+                    FOREIGN KEY(attempt_id) REFERENCES recognition_attempts(attempt_id)
+                );
+                CREATE TABLE IF NOT EXISTS media_event_links (
+                    media_id TEXT PRIMARY KEY,
+                    attempt_id TEXT NOT NULL UNIQUE,
+                    record_id TEXT NOT NULL UNIQUE,
+                    linked_at TEXT NOT NULL,
+                    FOREIGN KEY(media_id) REFERENCES media(media_id),
+                    FOREIGN KEY(attempt_id) REFERENCES recognition_attempts(attempt_id),
+                    FOREIGN KEY(record_id) REFERENCES events(record_id)
+                );
+                CREATE INDEX IF NOT EXISTS media_creation_order
+                    ON media(created_at, media_id);
+                CREATE INDEX IF NOT EXISTS recognition_media_order
+                    ON recognition_attempts(media_id, created_at, attempt_id);
                 CREATE TRIGGER IF NOT EXISTS preserve_event_evidence
                 BEFORE UPDATE OF raw_text, source_kind, actor_name, occurred_time,
                     recorded_at, related_record_ids_json, supersedes_id, created_at
@@ -225,6 +335,33 @@ class SQLiteStore:
                 CREATE TRIGGER IF NOT EXISTS preserve_handoff_delete
                 BEFORE DELETE ON handoffs BEGIN
                     SELECT RAISE(ABORT, 'handoff_immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS preserve_saved_media_original
+                BEFORE UPDATE OF household_id,kind,content_type,original_filename,
+                    size_bytes,sha256,relative_path,created_at ON media
+                WHEN OLD.save_status='saved' BEGIN
+                    SELECT RAISE(ABORT, 'media_original_immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS preserve_media_part_update
+                BEFORE UPDATE ON media_upload_parts BEGIN
+                    SELECT RAISE(ABORT, 'media_part_immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS preserve_media_part_delete
+                BEFORE DELETE ON media_upload_parts BEGIN
+                    SELECT RAISE(ABORT, 'media_part_immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS preserve_final_recognition
+                BEFORE UPDATE ON recognition_attempts
+                WHEN OLD.status IN ('succeeded','failed','interrupted') BEGIN
+                    SELECT RAISE(ABORT, 'recognition_attempt_immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS preserve_media_event_link_update
+                BEFORE UPDATE ON media_event_links BEGIN
+                    SELECT RAISE(ABORT, 'media_event_link_immutable');
+                END;
+                CREATE TRIGGER IF NOT EXISTS preserve_media_event_link_delete
+                BEFORE DELETE ON media_event_links BEGIN
+                    SELECT RAISE(ABORT, 'media_event_link_immutable');
                 END;
             ''')
             # Existing databases predate household ownership. Add the nullable
@@ -263,6 +400,54 @@ class SQLiteStore:
             if 'household_id' not in hcols:
                 c.execute('ALTER TABLE handoffs ADD COLUMN household_id TEXT')
 
+            media_cols = {r['name'] for r in c.execute('PRAGMA table_info(media)')}
+            media_migrations = (
+                ('actor_name', "TEXT NOT NULL DEFAULT '老人'"),
+                ('occurred_time', 'TEXT'),
+                ('link_pending_reason', 'TEXT'),
+                ('saved_at', 'TEXT'),
+                ('safety_json', 'TEXT'),
+            )
+            for column, declaration in media_migrations:
+                if column not in media_cols:
+                    c.execute(f'ALTER TABLE media ADD COLUMN {column} {declaration}')
+            upload_cols = {r['name'] for r in c.execute('PRAGMA table_info(media_uploads)')}
+            for column, declaration in (
+                ('expected_size', 'INTEGER'),
+                ('expected_sha256', 'TEXT'),
+                ('complete_idem_key', 'TEXT'),
+                ('complete_payload_hash', 'TEXT'),
+            ):
+                if column not in upload_cols:
+                    c.execute(f'ALTER TABLE media_uploads ADD COLUMN {column} {declaration}')
+            part_cols = {r['name'] for r in c.execute('PRAGMA table_info(media_upload_parts)')}
+            if 'idem_key' not in part_cols:
+                c.execute('ALTER TABLE media_upload_parts ADD COLUMN idem_key TEXT')
+
+            # Keep original evidence immutable after publication, including the
+            # actor and occurrence time captured before the upload completed.
+            c.execute('DROP TRIGGER IF EXISTS preserve_saved_media_original')
+            c.execute('''CREATE TRIGGER preserve_saved_media_original
+                BEFORE UPDATE OF household_id,kind,content_type,original_filename,
+                    actor_name,occurred_time,size_bytes,sha256,relative_path,
+                    saved_at,created_at ON media
+                WHEN OLD.save_status='saved' BEGIN
+                    SELECT RAISE(ABORT, 'media_original_immutable');
+                END''')
+
+            # A process cannot know whether an in-flight external recognition
+            # finished while it was down. Preserve that uncertainty explicitly;
+            # callers may retry with a new idempotency key after inspecting it.
+            interrupted_at = now()
+            c.execute('BEGIN IMMEDIATE')
+            c.execute('''UPDATE recognition_attempts
+                SET status='interrupted',finished_at=? WHERE status='processing' ''',
+                      (interrupted_at,))
+            c.execute('''UPDATE media SET recognition_status='interrupted',
+                version=version+1,updated_at=? WHERE recognition_status='processing' ''',
+                      (interrupted_at,))
+            c.commit()
+
     @staticmethod
     def dec(row):
         if row is None:
@@ -275,7 +460,7 @@ class SQLiteStore:
             raw = event.pop(db_field, None)
             event[field] = json.loads(raw) if raw else ([] if field == 'related_record_ids' else None)
         saved_safety = event.pop('safety_json', None)
-        event['local_safety'] = json.loads(saved_safety) if saved_safety else scan_danger(event['raw_text'])
+        event['local_safety'] = reconcile_safety(event['raw_text'], json.loads(saved_safety) if saved_safety else None)
         event['confirmation_scope'] = 'record_accuracy' if event['state'] == 'recorded' else None
         return event
 
@@ -315,13 +500,14 @@ class SQLiteStore:
     def _payload(payload):
         if not isinstance(payload, dict):
             raise StoreError('body_must_object')
+        if 'recorded_at' in payload:
+            raise StoreError('recorded_at_read_only')
         text_field(payload.get('raw_text'), 'raw_text', 10000)
         text_field(payload.get('source_kind'), 'source_kind', 40)
         if payload['source_kind'] not in SOURCES:
             raise StoreError('invalid_source_kind')
         text_field(payload.get('actor_name'), 'actor_name', 80)
         text_field(payload.get('occurred_time'), 'occurred_time', 120, required=False)
-        text_field(payload.get('recorded_at'), 'recorded_at', 120, required=False)
         related = payload.get('related_record_ids', [])
         if not isinstance(related, list) or len(related) > 10:
             raise StoreError('related_record_ids_must_bounded_list')
@@ -340,7 +526,7 @@ class SQLiteStore:
              related_record_ids_json,supersedes_id,created_at,updated_at)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (
             rid, payload['raw_text'], payload['source_kind'], payload['actor_name'],
-            payload.get('occurred_time'), payload.get('recorded_at') or at,
+            payload.get('occurred_time'), at,
             'inbox', 1, None, None, reason, json.dumps(related), supersedes_id, at, at,
         ))
         safety = scan_danger(payload['raw_text'])
@@ -358,6 +544,594 @@ class SQLiteStore:
             if household_id:
                 return [self.dec(r) for r in c.execute('SELECT * FROM events WHERE household_id=? ORDER BY recorded_at,created_at,record_id', (household_id,))]
             return [self.dec(r) for r in c.execute('SELECT * FROM events ORDER BY recorded_at,created_at,record_id')]
+
+    # --- Durable media ingestion and recognition state ---
+
+    @staticmethod
+    def _media_upload_payload(payload):
+        if not isinstance(payload, dict):
+            raise StoreError('body_must_object')
+        kind = text_field(payload.get('kind'), 'kind', 20)
+        if kind not in MEDIA_KINDS:
+            raise StoreError('invalid_media_kind')
+        content_type = text_field(payload.get('content_type'), 'content_type', 120)
+        expected_prefix = 'audio/' if kind == 'audio' else 'image/'
+        if not content_type.lower().startswith(expected_prefix):
+            raise StoreError('content_type_kind_mismatch')
+        filename = text_field(payload.get('original_filename'), 'original_filename', 255)
+        if Path(filename).name != filename or '/' in filename or '\\' in filename or '\x00' in filename:
+            raise StoreError('invalid_original_filename')
+        actor_name = text_field(payload.get('actor_name', '老人'), 'actor_name', 80)
+        occurred_time = text_field(
+            payload.get('occurred_time'), 'occurred_time', 120, required=False,
+        )
+        parts = payload.get('total_parts', payload.get('expected_parts'))
+        if type(parts) is not int or parts < 1:
+            raise StoreError('expected_parts_must_positive_integer')
+        expected_size = payload.get('expected_size')
+        if expected_size not in (None, '') and (
+            type(expected_size) is not int or expected_size < 1
+        ):
+            raise StoreError('expected_size_must_positive_integer')
+        expected_sha256 = payload.get('expected_sha256')
+        if expected_sha256 not in (None, ''):
+            if not isinstance(expected_sha256, str) or len(expected_sha256) != 64 or any(
+                ch not in '0123456789abcdef' for ch in expected_sha256.lower()
+            ):
+                raise StoreError('invalid_sha256')
+            expected_sha256 = expected_sha256.lower()
+        return {
+            'kind': kind,
+            'content_type': content_type,
+            'original_filename': filename,
+            'actor_name': actor_name,
+            'occurred_time': occurred_time,
+            'expected_parts': parts,
+            'expected_size': expected_size,
+            'expected_sha256': expected_sha256,
+        }
+
+    @staticmethod
+    def _trusted_media_identifier(value, prefix):
+        if not isinstance(value, str) or not value.startswith(prefix + '_') or len(value) > 100:
+            raise StoreError('invalid_' + prefix + '_id')
+        suffix = value[len(prefix) + 1:]
+        if not suffix or any(ch not in '0123456789abcdef-' for ch in suffix.lower()):
+            raise StoreError('invalid_' + prefix + '_id')
+        return value
+
+    @staticmethod
+    def _media_sha256(value):
+        if not isinstance(value, str) or len(value) != 64 or any(
+            ch not in '0123456789abcdef' for ch in value.lower()
+        ):
+            raise StoreError('invalid_sha256')
+        return value.lower()
+
+    @staticmethod
+    def _media_relative_path(value):
+        if not isinstance(value, str) or not value or '\x00' in value:
+            raise StoreError('invalid_storage_reference')
+        path = Path(value)
+        if path.is_absolute() or '..' in path.parts:
+            raise StoreError('invalid_storage_reference')
+        return path.as_posix()
+
+    @staticmethod
+    def _decode_attempt(row):
+        if row is None:
+            return None
+        attempt = dict(row)
+        if attempt.get('is_mock') is not None:
+            attempt['is_mock'] = bool(attempt['is_mock'])
+        if attempt.get('retryable') is not None:
+            attempt['retryable'] = bool(attempt['retryable'])
+        if attempt.get('error_code'):
+            attempt['error'] = {
+                'code': attempt['error_code'],
+                'message': attempt['error_message'],
+                'retryable': attempt['retryable'],
+            }
+        else:
+            attempt['error'] = None
+        return attempt
+
+    def _decode_media(self, c, row):
+        if row is None:
+            return None
+        media = dict(row)
+        # Storage references are deliberately absent from the public media
+        # representation. Trusted file code can request them separately.
+        media.pop('relative_path', None)
+        saved_safety = media.pop('safety_json', None)
+        media['local_safety'] = json.loads(saved_safety) if saved_safety else None
+        media['upload_status'] = media['save_status']
+        upload = c.execute('''SELECT upload_id,expected_parts,expected_size,expected_sha256 FROM media_uploads
+            WHERE media_id=?''', (media['media_id'],)).fetchone()
+        media['upload_id'] = upload['upload_id'] if upload else None
+        media['expected_parts'] = upload['expected_parts'] if upload else None
+        media['expected_size'] = upload['expected_size'] if upload else None
+        media['expected_sha256'] = upload['expected_sha256'] if upload else None
+        if upload:
+            media['uploaded_parts'] = c.execute('''SELECT COUNT(*) FROM media_upload_parts
+                WHERE upload_id=?''', (upload['upload_id'],)).fetchone()[0]
+        else:
+            media['uploaded_parts'] = 0
+        attempts = [self._decode_attempt(item) for item in c.execute('''
+            SELECT * FROM recognition_attempts WHERE media_id=?
+            ORDER BY created_at,attempt_id''', (media['media_id'],))]
+        for item in attempts:
+            item['local_safety'] = (
+                media['local_safety']
+                if item['attempt_id'] == media.get('current_attempt_id') else None
+            )
+        media['attempts'] = attempts
+        attempt = next((item for item in attempts
+                        if item['attempt_id'] == media.get('current_attempt_id')), None)
+        media['recognition'] = attempt
+        media['latest_attempt'] = attempt
+        link = c.execute('SELECT record_id,attempt_id,linked_at FROM media_event_links WHERE media_id=?',
+                         (media['media_id'],)).fetchone()
+        media['event_link'] = dict(link) if link else None
+        media['record_id'] = link['record_id'] if link else None
+        return media
+
+    def _get_media(self, c, media_id):
+        media = self._decode_media(
+            c, c.execute('SELECT * FROM media WHERE media_id=?', (media_id,)).fetchone(),
+        )
+        if media is None:
+            raise NotFound('media_not_found')
+        return media
+
+    def create_media_upload(
+        self, payload, key, household_id='hh_local_default', *,
+        upload_id=None, media_id=None,
+    ):
+        normalized = self._media_upload_payload(payload)
+        text_field(key, 'idempotency_key', 200)
+        text_field(household_id, 'household_id', 100)
+        if upload_id is not None:
+            upload_id = self._trusted_media_identifier(upload_id, 'upload')
+        if media_id is not None:
+            media_id = self._trusted_media_identifier(media_id, 'media')
+        identity = {'upload_id': upload_id, 'media_id': media_id}
+        encoded = json.dumps({**normalized, **identity}, ensure_ascii=False, sort_keys=True,
+                             separators=(',', ':'), allow_nan=False)
+        digest = hashlib.sha256(encoded.encode()).hexdigest()
+        with self.transaction() as c:
+            prior = c.execute('SELECT * FROM media_uploads WHERE idem_key=?', (key,)).fetchone()
+            if prior:
+                if prior['payload_hash'] != digest:
+                    raise Conflict('idempotency_key_payload_mismatch')
+                return self._get_media(c, prior['media_id']), False
+            if c.execute('SELECT 1 FROM households WHERE household_id=?',
+                         (household_id,)).fetchone() is None:
+                raise NotFound('household_not_found')
+            at = now()
+            media_id = media_id or 'media_' + uuid.uuid4().hex
+            upload_id = upload_id or 'upload_' + uuid.uuid4().hex
+            if c.execute('SELECT 1 FROM media WHERE media_id=?', (media_id,)).fetchone():
+                raise Conflict('media_id_conflict')
+            if c.execute('SELECT 1 FROM media_uploads WHERE upload_id=?', (upload_id,)).fetchone():
+                raise Conflict('upload_id_conflict')
+            c.execute('''INSERT INTO media(
+                media_id,household_id,kind,content_type,original_filename,actor_name,
+                occurred_time,
+                save_status,recognition_status,link_status,version,created_at,updated_at
+            ) VALUES(?,?,?,?,?,?,?,'uploading','not_started','not_linked',1,?,?)''', (
+                media_id, household_id, normalized['kind'], normalized['content_type'],
+                normalized['original_filename'], normalized['actor_name'],
+                normalized['occurred_time'], at, at,
+            ))
+            c.execute('''INSERT INTO media_uploads(
+                upload_id,media_id,idem_key,payload_hash,expected_parts,expected_size,
+                expected_sha256,created_at,updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?)''', (
+                upload_id, media_id, key, digest, normalized['expected_parts'],
+                normalized['expected_size'], normalized['expected_sha256'], at, at,
+            ))
+            return self._get_media(c, media_id), True
+
+    def record_media_part(
+        self, upload_id, index, *, relative_path, size_bytes, sha256,
+        idempotency_key=None,
+    ):
+        self._trusted_media_identifier(upload_id, 'upload')
+        if type(index) is not int or index < 0:
+            raise StoreError('invalid_part_index')
+        if type(size_bytes) is not int or size_bytes < 1:
+            raise StoreError('invalid_part_size')
+        relative_path = self._media_relative_path(relative_path)
+        sha256 = self._media_sha256(sha256)
+        if idempotency_key is not None:
+            text_field(idempotency_key, 'idempotency_key', 200)
+        with self.transaction() as c:
+            upload = c.execute('SELECT * FROM media_uploads WHERE upload_id=?',
+                               (upload_id,)).fetchone()
+            if upload is None:
+                raise NotFound('upload_not_found')
+            media = self._get_media(c, upload['media_id'])
+            if media['save_status'] != 'uploading':
+                raise Conflict('upload_not_open')
+            if index >= upload['expected_parts']:
+                raise StoreError('invalid_part_index')
+            prior = c.execute('''SELECT * FROM media_upload_parts
+                WHERE upload_id=? AND part_index=?''', (upload_id, index)).fetchone()
+            if idempotency_key:
+                keyed = c.execute('''SELECT * FROM media_upload_parts
+                    WHERE upload_id=? AND idem_key=?''',
+                    (upload_id, idempotency_key)).fetchone()
+                if keyed and keyed['part_index'] != index:
+                    raise Conflict('idempotency_key_payload_mismatch')
+            public = {
+                'upload_id': upload_id, 'index': index,
+                'size_bytes': size_bytes, 'sha256': sha256,
+            }
+            if prior:
+                if (
+                    prior['relative_path'] != relative_path
+                    or prior['size_bytes'] != size_bytes
+                    or prior['sha256'] != sha256
+                    or (idempotency_key and prior['idem_key'] not in (None, idempotency_key))
+                ):
+                    raise Conflict('media_part_conflict')
+                public['created_at'] = prior['created_at']
+                return public, False
+            at = now()
+            c.execute('''INSERT INTO media_upload_parts(
+                upload_id,part_index,idem_key,relative_path,size_bytes,sha256,created_at
+            ) VALUES(?,?,?,?,?,?,?)''', (
+                upload_id, index, idempotency_key, relative_path, size_bytes, sha256, at,
+            ))
+            c.execute('''UPDATE media SET version=version+1,updated_at=?
+                WHERE media_id=?''', (at, upload['media_id']))
+            c.execute('UPDATE media_uploads SET updated_at=? WHERE upload_id=?',
+                      (at, upload_id))
+            public['created_at'] = at
+            return public, True
+
+    def complete_media_upload(
+        self, upload_id, *, size_bytes, sha256, relative_path,
+        content_type=None, saved_at=None, idempotency_key=None,
+    ):
+        self._trusted_media_identifier(upload_id, 'upload')
+        if type(size_bytes) is not int or size_bytes < 1:
+            raise StoreError('invalid_media_size')
+        sha256 = self._media_sha256(sha256)
+        relative_path = self._media_relative_path(relative_path)
+        if saved_at is not None:
+            saved_at = text_field(saved_at, 'saved_at', 120)
+        if idempotency_key is not None:
+            text_field(idempotency_key, 'idempotency_key', 200)
+        complete_hash = hashlib.sha256(json.dumps({
+            'upload_id': upload_id,
+            'size_bytes': size_bytes,
+            'sha256': sha256,
+            'content_type': content_type,
+        }, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        with self.transaction() as c:
+            if idempotency_key is not None:
+                prior_key = c.execute('''SELECT payload_hash,upload_id
+                    FROM media_upload_idempotency WHERE idem_key=?''',
+                                      (idempotency_key,)).fetchone()
+                if prior_key:
+                    if prior_key['payload_hash'] != complete_hash or prior_key['upload_id'] != upload_id:
+                        raise Conflict('idempotency_key_payload_mismatch')
+            upload = c.execute('SELECT * FROM media_uploads WHERE upload_id=?',
+                               (upload_id,)).fetchone()
+            if upload is None:
+                raise NotFound('upload_not_found')
+            media = self._get_media(c, upload['media_id'])
+            final_type = content_type or media['content_type']
+            text_field(final_type, 'content_type', 120)
+            prefix = 'audio/' if media['kind'] == 'audio' else 'image/'
+            if not final_type.lower().startswith(prefix):
+                raise StoreError('content_type_kind_mismatch')
+            if media['save_status'] == 'saved':
+                if (
+                    media['size_bytes'] != size_bytes
+                    or media['sha256'] != sha256
+                    or media['content_type'] != final_type
+                ):
+                    raise Conflict('completed_upload_conflict')
+                if idempotency_key is not None:
+                    prior_key = upload['complete_idem_key']
+                    prior_hash = upload['complete_payload_hash']
+                    if prior_key == idempotency_key and prior_hash not in (None, complete_hash):
+                        raise Conflict('idempotency_key_payload_mismatch')
+                    if prior_key is None:
+                        c.execute('''UPDATE media_uploads SET complete_idem_key=?,
+                            complete_payload_hash=?,updated_at=? WHERE upload_id=?''',
+                                  (idempotency_key, complete_hash, now(), upload_id))
+                return media, False
+            if media['save_status'] != 'uploading':
+                raise Conflict('upload_not_open')
+            parts = list(c.execute('''SELECT part_index FROM media_upload_parts
+                WHERE upload_id=? ORDER BY part_index''', (upload_id,)))
+            if [row['part_index'] for row in parts] != list(range(upload['expected_parts'])):
+                raise Conflict('upload_incomplete')
+            at = saved_at or now()
+            c.execute('''UPDATE media SET content_type=?,save_status='saved',
+                size_bytes=?,sha256=?,relative_path=?,saved_at=?,version=version+1,
+                updated_at=? WHERE media_id=?''', (
+                final_type, size_bytes, sha256, relative_path, at, at,
+                upload['media_id'],
+            ))
+            c.execute('UPDATE media_uploads SET updated_at=? WHERE upload_id=?',
+                      (at, upload_id))
+            if idempotency_key is not None:
+                c.execute('''UPDATE media_uploads SET complete_idem_key=?,
+                    complete_payload_hash=? WHERE upload_id=?''',
+                          (idempotency_key, complete_hash, upload_id))
+                c.execute('''INSERT OR IGNORE INTO media_upload_idempotency(
+                    idem_key,payload_hash,upload_id) VALUES(?,?,?)''',
+                          (idempotency_key, complete_hash, upload_id))
+            return self._get_media(c, upload['media_id']), True
+
+    def _media_recognition_result(self, c, media_id, action=None):
+        media = self._get_media(c, media_id)
+        result = {
+            'accepted': True,
+            'media': media,
+            'attempt': media['latest_attempt'],
+            'attempt_id': (
+                media['latest_attempt']['attempt_id']
+                if media['latest_attempt'] else None
+            ),
+        }
+        if action is not None:
+            result['action'] = action
+        if media['event_link']:
+            result['event'] = self._get(c, media['event_link']['record_id'])
+            result['event_created'] = False
+        return result
+
+    def claim_media_recognition(
+        self, media_id, *, expected_version, idempotency_key, actor,
+    ):
+        text_field(media_id, 'media_id', 100)
+        expected = expected_version if type(expected_version) is int else None
+        if expected is None or expected < 1:
+            raise StoreError('expected_version_must_positive_integer')
+        text_field(idempotency_key, 'idempotency_key', 200)
+        text_field(actor, 'actor_name', 80)
+        digest = hashlib.sha256(json.dumps({
+            'media_id': media_id,
+            'expected_version': expected,
+            'actor': actor,
+        }, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        with self.transaction() as c:
+            prior = c.execute('''SELECT rr.payload_hash,ra.media_id
+                FROM recognition_requests rr JOIN recognition_attempts ra
+                ON ra.attempt_id=rr.attempt_id WHERE rr.idem_key=?''',
+                (idempotency_key,)).fetchone()
+            if prior:
+                if prior['payload_hash'] != digest or prior['media_id'] != media_id:
+                    raise Conflict('idempotency_key_payload_mismatch')
+                return self._media_recognition_result(c, media_id, 'existing')
+            media = self._get_media(c, media_id)
+            if media['save_status'] != 'saved':
+                raise Conflict('media_not_saved')
+            current = media['latest_attempt']
+            if media['recognition_status'] == 'processing' and current:
+                c.execute('INSERT INTO recognition_requests VALUES(?,?,?)', (
+                    idempotency_key, digest, current['attempt_id'],
+                ))
+                return self._media_recognition_result(c, media_id, 'existing')
+            if media['recognition_status'] == 'succeeded' and current:
+                c.execute('INSERT INTO recognition_requests VALUES(?,?,?)', (
+                    idempotency_key, digest, current['attempt_id'],
+                ))
+                action = 'existing' if media['link_status'] == 'linked' else 'resume_link'
+                return self._media_recognition_result(c, media_id, action)
+            if (
+                media['recognition_status'] == 'failed'
+                and current and current['retryable'] is False
+            ):
+                raise Conflict('recognition_not_retryable')
+            if media['version'] != expected:
+                raise Conflict('stale_version')
+            at = now()
+            attempt_id = uid('attempt_')
+            c.execute('''INSERT INTO recognition_attempts(
+                attempt_id,media_id,status,started_at,created_at
+            ) VALUES(?,?,'processing',?,?)''', (attempt_id, media_id, at, at))
+            c.execute('INSERT INTO recognition_requests VALUES(?,?,?)', (
+                idempotency_key, digest, attempt_id,
+            ))
+            c.execute('''UPDATE media SET recognition_status='processing',
+                current_attempt_id=?,link_status='not_linked',link_pending_reason=NULL,
+                safety_json=NULL,version=version+1,updated_at=? WHERE media_id=?''',
+                (attempt_id, at, media_id))
+            return self._media_recognition_result(c, media_id, 'claimed')
+
+    def save_media_recognition_text(
+        self, media_id, attempt_id, *, text, provider, model, is_mock, actor,
+    ):
+        text_field(media_id, 'media_id', 100)
+        text_field(attempt_id, 'attempt_id', 100)
+        text = text_field(text, 'recognition_text', 10_000_000)
+        provider = text_field(provider, 'provider', 120)
+        model = text_field(model, 'model', 200, required=False)
+        if type(is_mock) is not bool:
+            raise StoreError('is_mock_must_boolean')
+        text_field(actor, 'actor_name', 80)
+        with self.transaction() as c:
+            media = self._get_media(c, media_id)
+            attempt = c.execute('SELECT * FROM recognition_attempts WHERE attempt_id=?',
+                                (attempt_id,)).fetchone()
+            if (
+                attempt is None or attempt['media_id'] != media_id
+                or media['current_attempt_id'] != attempt_id
+                or attempt['status'] != 'processing'
+            ):
+                raise Conflict('stale_recognition_attempt')
+            at = now()
+            c.execute('''UPDATE recognition_attempts SET status='succeeded',provider=?,
+                model=?,is_mock=?,text=?,finished_at=? WHERE attempt_id=?''',
+                (provider, model, int(is_mock), text, at, attempt_id))
+            c.execute('''UPDATE media SET recognition_status='succeeded',
+                link_status='pending',link_pending_reason='safety_scan_pending',
+                version=version+1,updated_at=? WHERE media_id=?''', (at, media_id))
+            return self._media_recognition_result(c, media_id)
+
+    def save_media_recognition_safety(
+        self, media_id, attempt_id, *, safety, actor,
+    ):
+        if not isinstance(safety, dict):
+            raise StoreError('safety_must_object')
+        text_field(actor, 'actor_name', 80)
+        with self.transaction() as c:
+            media = self._get_media(c, media_id)
+            attempt = c.execute('SELECT * FROM recognition_attempts WHERE attempt_id=?',
+                                (attempt_id,)).fetchone()
+            if (
+                attempt is None or attempt['media_id'] != media_id
+                or media['current_attempt_id'] != attempt_id
+                or attempt['status'] != 'succeeded' or not attempt['text']
+            ):
+                raise Conflict('stale_recognition_attempt')
+            at = now()
+            c.execute('''UPDATE media SET safety_json=?,link_status='pending',
+                link_pending_reason='event_link_pending',version=version+1,
+                updated_at=? WHERE media_id=?''',
+                (json.dumps(safety, ensure_ascii=False), at, media_id))
+            return self._media_recognition_result(c, media_id)
+
+    def save_media_recognition_failure(
+        self, media_id, attempt_id, *, code, message, retryable, actor,
+    ):
+        text_field(code, 'recognition_error_code', 120)
+        text_field(actor, 'actor_name', 80)
+        if type(retryable) is not bool:
+            raise StoreError('retryable_must_boolean')
+        public_message, expected_retryable = RECOGNITION_FAILURES.get(
+            code, ('识别服务未能完成', retryable),
+        )
+        retryable = expected_retryable if code in RECOGNITION_FAILURES else retryable
+        with self.transaction() as c:
+            media = self._get_media(c, media_id)
+            attempt = c.execute('SELECT * FROM recognition_attempts WHERE attempt_id=?',
+                                (attempt_id,)).fetchone()
+            if (
+                attempt is None or attempt['media_id'] != media_id
+                or media['current_attempt_id'] != attempt_id
+                or attempt['status'] != 'processing'
+            ):
+                raise Conflict('stale_recognition_attempt')
+            at = now()
+            c.execute('''UPDATE recognition_attempts SET status='failed',error_code=?,
+                error_message=?,retryable=?,finished_at=? WHERE attempt_id=?''',
+                (code, public_message, int(retryable), at, attempt_id))
+            c.execute('''UPDATE media SET recognition_status='failed',
+                link_status='not_linked',link_pending_reason=NULL,
+                version=version+1,updated_at=? WHERE media_id=?''', (at, media_id))
+            return self._media_recognition_result(c, media_id)
+
+    def create_and_link_media_event(
+        self, media_id, attempt_id, *, payload, idempotency_key, actor,
+        household_id, expected_version=None,
+    ):
+        text_field(idempotency_key, 'idempotency_key', 200)
+        text_field(actor, 'actor_name', 80)
+        text_field(household_id, 'household_id', 100)
+        if not isinstance(payload, dict):
+            raise StoreError('body_must_object')
+        with self.transaction() as c:
+            media = self._get_media(c, media_id)
+            if media['household_id'] != household_id:
+                raise Forbidden('household_access_denied')
+            if media['event_link']:
+                return self._media_recognition_result(c, media_id) | {'linked': True}
+            if expected_version is not None:
+                expected = expected_version if type(expected_version) is int else None
+                if expected is None or expected < 1:
+                    raise StoreError('expected_version_must_positive_integer')
+                if media['version'] != expected:
+                    raise Conflict('stale_version')
+            attempt = c.execute('SELECT * FROM recognition_attempts WHERE attempt_id=?',
+                                (attempt_id,)).fetchone()
+            if (
+                attempt is None or attempt['media_id'] != media_id
+                or media['current_attempt_id'] != attempt_id
+                or attempt['status'] != 'succeeded' or not attempt['text']
+            ):
+                raise Conflict('stale_recognition_attempt')
+            if media['local_safety'] is None:
+                raise Conflict('safety_scan_required')
+            if len(attempt['text']) > 10000:
+                at = now()
+                c.execute('''UPDATE media SET link_status='pending',
+                    link_pending_reason='raw_text_too_long',version=version+1,
+                    updated_at=? WHERE media_id=?''', (at, media_id))
+                return self._media_recognition_result(c, media_id) | {'linked': False}
+            event_payload = {
+                'raw_text': attempt['text'],
+                'source_kind': (
+                    'audio_transcript' if media['kind'] == 'audio' else 'document'
+                ),
+                'actor_name': media['actor_name'],
+                'occurred_time': media['occurred_time'],
+                'related_record_ids': payload.get('related_record_ids', []),
+            }
+            try:
+                related = self._payload(event_payload)
+            except StoreError:
+                at = now()
+                c.execute('''UPDATE media SET link_status='pending',
+                    link_pending_reason='event_validation_failed',version=version+1,
+                    updated_at=? WHERE media_id=?''', (at, media_id))
+                return self._media_recognition_result(c, media_id) | {'linked': False}
+            for related_id in related:
+                related_row = c.execute('''SELECT household_id FROM events
+                    WHERE record_id=?''', (related_id,)).fetchone()
+                if related_row is None:
+                    raise NotFound('related_record_not_found')
+                if related_row['household_id'] not in (None, household_id):
+                    raise Forbidden('cross_household_reference_denied')
+            event = self._insert(c, event_payload, related)
+            c.execute('UPDATE events SET household_id=? WHERE record_id=?',
+                      (household_id, event['record_id']))
+            event = self._get(c, event['record_id'])
+            self.rev(c, event, 'created', actor)
+            self.aud(c, event['record_id'], 'created', 1, actor, {
+                'idempotency_key': idempotency_key, 'media_id': media_id,
+                'attempt_id': attempt_id,
+            })
+            digest = hashlib.sha256(
+                json.dumps(event_payload, ensure_ascii=False, sort_keys=True,
+                           separators=(',', ':')).encode()
+            ).hexdigest()
+            c.execute('INSERT INTO idempotency VALUES(?,?,?)',
+                      (idempotency_key, digest, event['record_id']))
+            at = now()
+            c.execute('INSERT INTO media_event_links VALUES(?,?,?,?)',
+                      (media_id, attempt_id, event['record_id'], at))
+            c.execute('''UPDATE media SET link_status='linked',
+                link_pending_reason=NULL,version=version+1,updated_at=?
+                WHERE media_id=?''', (at, media_id))
+            result = self._media_recognition_result(c, media_id)
+            result.update(linked=True, event_created=True)
+            return result
+
+    def get_media(self, media_id, household_id=None):
+        text_field(media_id, 'media_id', 100)
+        with self.connection() as c:
+            row = c.execute('SELECT * FROM media WHERE media_id=?', (media_id,)).fetchone()
+            media = self._decode_media(c, row)
+            if media is None or (household_id and media['household_id'] != household_id):
+                return None
+            return media
+
+    def list_media(self, household_id=None):
+        with self.connection() as c:
+            if household_id:
+                rows = c.execute('''SELECT * FROM media WHERE household_id=?
+                    ORDER BY created_at,media_id''', (household_id,))
+            else:
+                rows = c.execute('SELECT * FROM media ORDER BY created_at,media_id')
+            return [self._decode_media(c, row) for row in rows]
 
     def create(self, payload, key, actor='system', household_id='hh_local_default'):
         # Legacy callers may omit household_id; account-aware callers pass the
@@ -578,15 +1352,45 @@ class SQLiteStore:
     def organize(self, rid, expected, result, actor='system'):
         expected = expected_version(expected)
         text_field(actor, 'actor_name', 80)
-        if not isinstance(result, dict) or not isinstance(result.get('output'), dict) or not result['output']:
+        if not isinstance(result, dict):
             raise StoreError('validated_output_required')
-        draft_json = json.dumps(result['output'], ensure_ascii=False, allow_nan=False)
-        meta = {k: result.get(k) for k in ('trace_id', 'provider', 'prompt_version', 'schema_version', 'latency_ms', 'safety_guard_applied')}
-        meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)
+        output = result.get('output')
+        text_meta = ('trace_id', 'provider', 'prompt_version')
+        latency = result.get('latency_ms')
+        if (
+            result.get('ok') is not True
+            or result.get('ai_failed') is not False
+            or not isinstance(output, dict)
+            or not output
+            or any(not isinstance(result.get(k), str) or not result[k].strip() for k in text_meta)
+            or result.get('schema_version') != 'event-v0.3'
+            or isinstance(latency, bool)
+            or not isinstance(latency, (int, float))
+            or not math.isfinite(latency)
+            or latency < 0
+            or not isinstance(result.get('safety_guard_applied'), bool)
+        ):
+            raise StoreError('validated_output_required')
         with self.transaction() as c:
             event = self._versioned(c, rid, expected)
             if event['state'] not in {'inbox', 'needs_review', 'draft'}:
                 raise Conflict('organize_state_invalid')
+            related = [self._get(c, related_id) for related_id in event.get('related_record_ids', [])]
+            try:
+                try:
+                    from .adapter import AdapterError, validate_output
+                except ImportError:
+                    from adapter import AdapterError, validate_output
+                validate_output(output, event['raw_text'], {**event, 'history': related})
+                draft_json = json.dumps(output, ensure_ascii=False, allow_nan=False)
+                meta = {k: result.get(k) for k in (
+                    'trace_id', 'provider', 'model_id', 'prompt_version',
+                    'prompt_sha256', 'input_sha256', 'schema_version',
+                    'latency_ms', 'safety_guard_applied',
+                )}
+                meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)
+            except (AdapterError, TypeError, ValueError) as exc:
+                raise StoreError('validated_output_required') from exc
             c.execute('''UPDATE events SET state='draft',version=version+1,
                 draft_json=?,result_meta_json=?,updated_at=?
                 WHERE record_id=? AND version=?''', (draft_json, meta_json, now(), rid, expected))
@@ -595,9 +1399,11 @@ class SQLiteStore:
             self.aud(c, rid, 'organized', event['version'], actor, {'provider': meta.get('provider')})
             return event
 
-    def fail(self, rid, action, actor, details):
+    def fail(self, rid, expected, action, actor, details):
+        expected = expected_version(expected)
+        text_field(actor, 'actor_name', 80)
         with self.transaction() as c:
-            event = self._get(c, rid)
+            event = self._versioned(c, rid, expected)
             self.aud(c, rid, action, event['version'], actor, details)
 
     def review(self, rid, expected, action, actor, note):
@@ -668,6 +1474,8 @@ class SQLiteStore:
         reasons = []
         if event.get('local_safety', {}).get('danger_detected'):
             reasons.append('local_danger_detected')
+        if event.get('local_safety', {}).get('clinical_review_required'):
+            reasons.append('clinical_measurement_review_required')
         if event['state'] != 'recorded':
             reasons.append('record_not_confirmed')
         draft = event.get('draft') or {}
@@ -698,10 +1506,50 @@ class SQLiteStore:
             for event in events:
                 event['unresolved_reasons'] = self.unresolved_reasons(event)
                 event['unresolved'] = bool(event['unresolved_reasons'])
+            if household_id:
+                media_rows = c.execute('''SELECT * FROM media WHERE household_id=?
+                    ORDER BY created_at,media_id''', (household_id,))
+            else:
+                media_rows = c.execute('''SELECT * FROM media
+                    ORDER BY created_at,media_id''')
+            media_attachments = []
+            for row in media_rows:
+                media = self._decode_media(c, row)
+                attempt = media.get('latest_attempt') or {}
+                reasons = []
+                if media['recognition_status'] == 'failed':
+                    reasons.append('media_recognition_failed')
+                elif media['recognition_status'] in {'not_started', 'processing', 'interrupted'}:
+                    reasons.append('media_recognition_incomplete')
+                if media['link_status'] != 'linked':
+                    reasons.append('media_event_not_linked')
+                pending_reason = (
+                    media.get('link_pending_reason')
+                    or attempt.get('error_code')
+                )
+                media_attachments.append({
+                    'media_id': media['media_id'],
+                    'kind': media['kind'],
+                    'save_status': media['save_status'],
+                    'recognition_status': media['recognition_status'],
+                    'is_mock': attempt.get('is_mock'),
+                    'link_status': media['link_status'],
+                    'record_id': media.get('record_id'),
+                    'pending_reason': pending_reason,
+                    'has_text': bool(attempt.get('text')),
+                    'local_safety': media.get('local_safety'),
+                    'unresolved': bool(reasons),
+                    'unresolved_reasons': reasons,
+                })
             handoff = {
                 'handoff_id': uid('handoff_'), 'created_at': now(), 'household_id': household_id, 'items': events,
-                'unresolved_count': sum(event['unresolved'] for event in events),
+                'unresolved_count': (
+                    sum(event['unresolved'] for event in events)
+                    + sum(item['unresolved'] for item in media_attachments)
+                ),
             }
+            if media_attachments:
+                handoff['media_attachments'] = media_attachments
             c.execute('INSERT INTO handoffs(handoff_id,created_at,snapshot_json,household_id) VALUES(?,?,?,?)', (
                 handoff['handoff_id'], handoff['created_at'],
                 json.dumps(handoff, ensure_ascii=False), household_id,

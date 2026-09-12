@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 .venv/
+.venv312/
 venv/
 __pycache__/
 *.py[cod]
@@ -9,9 +10,28 @@ __pycache__/
 .DS_Store
 runtime/
 *.sqlite3*
+*.sqlite
+*.sqlite-*
 *.db
+*.db-*
 node_modules/
 frontend/dist/
 coverage/
 .coverage
 *.log
+
+# Local media samples and generated attachments must never enter Git.
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.pdf
+
+# Reviewed, explicitly synthetic self-test samples only.
+!data/synthetic/selftest/voice.wav
+!data/synthetic/selftest/card.png
