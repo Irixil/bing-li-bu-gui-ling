@@ -25,3 +25,19 @@ DASHSCOPE_API_KEY=\$DASHSCOPE_API_KEY \
 ```
 
 `MEDIA_ASR_PROVIDER=paraformer` 会把同一适配器切到 `paraformer-v2`，用于同一批音频的成本和质量对照。真实医疗音频必须先获得授权；完整原件由 A 侧先持久化，识别失败仍可重试，不能丢失。
+
+单条真实 smoke test：
+
+```bash
+DASHSCOPE_API_KEY='你的百炼Key' \\
+.venv/bin/python scripts/verify_dashscope_asr.py
+```
+
+指定对照模型：
+
+```bash
+DASHSCOPE_API_KEY='你的百炼Key' \\
+.venv/bin/python scripts/verify_dashscope_asr.py --model paraformer-v2
+```
+
+脚本只输出识别结果和安全错误分类，不输出 Key。若服务端点、模型权限或请求形态不匹配，会返回错误并保持原件不变；此时不能把失败当成模型质量结论。
