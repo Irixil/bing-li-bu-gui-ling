@@ -2,7 +2,7 @@
 
 状态：**本地 MVP 媒体后端已组装并通过自动化验证；真实供应商、浏览器和手机仍未验收。**
 
-实现基线：`fix/backend-api` 分支提交 `89a2ee2`（其父提交 `f328993`）；依赖 B 的 `backend/recognition.py`。
+实现基线：`fix/backend-api` 分支提交 `36f3b67`（其父提交 `89a2ee2`）；依赖 B 的 `backend/recognition.py`。
 
 ## 已交付
 
@@ -16,7 +16,7 @@
 
 ## 接手后第一步
 
-1. 确认工作区干净并切到 `fix/backend-api`，执行 `git show 89a2ee2`。
+1. 确认工作区干净并切到 `fix/backend-api`，执行 `git show 36f3b67`。
 2. 复制 `.env.example` 为本地 `.env`，为 `MEDIA_UPLOAD_MAX_BYTES`、`MEDIA_UPLOAD_PART_MAX_BYTES`、`MEDIA_UPLOAD_MAX_PARTS` 设置明确正整数；不设置时媒体写入口会按设计关闭。
 3. 启动 `python -m backend.run_local`，访问 `/health` 和 `/api/media/capabilities`。
 4. 先运行 `python -m pytest -q` 与 `npm run check:contracts`，再按 [frontend/README.md](../../frontend/README.md) 接线。

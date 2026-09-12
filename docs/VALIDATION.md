@@ -4,7 +4,7 @@
 
 ## B 分支增量验证
 
-目标分支：`fix/backend-api`，当前验证提交 `89a2ee2`（父提交 `f328993`）；`origin/main` 的历史共同基线为 `e1a5967`。以下结果是 2026-09-12 在本地 Python 3.12 对当前分支重新执行的证据，不替代合并后发布候选上的重跑：
+目标分支：`fix/backend-api`，当前验证提交 `36f3b67`（父提交 `89a2ee2`）；`origin/main` 的历史共同基线为 `e1a5967`。以下结果是 2026-09-12 在本地 Python 3.12 对当前实现提交重新执行的证据，不替代合并后发布候选上的重跑：
 
 - `python -m pytest -q`：**220 passed**。在原 71 项文本底座基础上，加入后端 HTTP/并发/发布门槛回归、17 项识别模块测试和媒体上传/持久化/状态机/HTTP/备份恢复测试，覆盖健康检查/token、创建幂等与冲突、版本竞争、AI/识别失败保留、危险扫描、完整文字、Event 关联、交接快照、CORS/Origin、未预期异常脱敏、媒体能力发现、未配置边界禁写和真实后端进程重启恢复。JUnit 证据见 `docs/evidence/b-backend-tests.xml`。
 - 新增测试以真实临时 HTTP 服务、临时 SQLite 和真实后端子进程为主要接缝；外部模型仍使用 Mock/失败适配器，不把供应商行为冒充成本地验证。TypeScript 调用者合同已通过 `npm ci && npm run check:contracts`。
@@ -13,7 +13,7 @@
 
 ## 媒体后端说明
 
-2026-09-12 协作更新：媒体后端已在 `fix/backend-api@89a2ee2` 接入本地文件存储、SQLite 状态、识别模块、危险扫描、Event 关联、HTTP 接口和备份恢复。以下证据仍只覆盖本地文件、Mock/替身和自动化测试；真实 ASR/OCR、浏览器、手机暂停续录和公网部署不能由这些结果推出。联合验收见 [团队任务包](team/README.md) 和 [合并指南](team/INTEGRATION.md)。
+2026-09-12 协作更新：媒体后端已在 `fix/backend-api@36f3b67` 接入本地文件存储、SQLite 状态、识别模块、危险扫描、Event 关联、HTTP 接口和备份恢复。以下证据仍只覆盖本地文件、Mock/替身和自动化测试；真实 ASR/OCR、浏览器、手机暂停续录和公网部署不能由这些结果推出。联合验收见 [团队任务包](team/README.md) 和 [合并指南](team/INTEGRATION.md)。
 
 ## 已通过
 
