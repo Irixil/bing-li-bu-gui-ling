@@ -1,6 +1,6 @@
 # 验证记录
 
-目标版本：本地 MVP 工作区，Python 3.12；文本整理使用 `MODEL_PROVIDER=mock`，媒体识别必须显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 才启用 Mock。报告文件在 `docs/evidence/`。
+目标版本：集成候选 `integration/demo-version`，Python 3.12；文本整理使用 `MODEL_PROVIDER=mock`，媒体识别需显式设置 provider。报告文件在 `docs/evidence/`。合并后需在本候选上重新执行完整测试、Mock 评测和演示，并补充前端浏览器验收记录。
 
 ## B 分支增量验证
 
@@ -23,7 +23,7 @@
 - 公开病例来源和 CC BY 4.0 署名在 `data/public_cases/README.md`；没有使用医院原始病历。
 - 用 `python -m backend.run_local` 真正启动并停止进程，再重启同一个临时数据库；3 条公开病例记录的原文、危险状态、记录版本和交接快照恢复成功，见 `docs/evidence/process-restart.json`。
 
-## 尚未验证
+## 基线交付时尚未验证（历史，最新模型状态见文首）
 
 - 前端由项目负责人在独立任务开发，尚未通过本项目完整真实浏览器操作验收。
 - 真实手机录音格式、浏览器 Blob 播放、真实 ASR/OCR、媒体暂停续录合并和真实供应商失败路径尚未验收；本地自动化媒体证据不能代替这些外部证据。

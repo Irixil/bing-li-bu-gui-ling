@@ -7,7 +7,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 
 from backend import adapter
-from backend.safety import DANGER_REMINDER, scan_danger
+from backend.safety import CLINICAL_REVIEW_VERSION, DANGER_REMINDER, RULE_VERSION, scan_danger
 from backend.store import SQLiteStore
 
 
@@ -50,7 +50,7 @@ def create(request, text, key='input'):
     return body['event']
 
 
-@pytest.mark.parametrize('text', ['今天散步，吃饭和睡觉都和平时一样。', '胸口疼，喘不上气'])
+@pytest.mark.parametrize('text', ['今天散步，吃饭和睡觉都和平时一样。', '胸口疼，喘不上气', '心率40次/分'])
 @pytest.mark.parametrize('failure', ['offline', 'timeout', 'invalid_json', 'empty', 'unexpected', 'invalid_object'])
 def test_failure_keeps_original_and_notice(api, monkeypatch, text, failure):
     request, store = api
@@ -101,6 +101,7 @@ def test_failure_keeps_original_and_notice(api, monkeypatch, text, failure):
     assert status == 201
     assert card['handoff']['items'][0]['local_safety'] == expected
     assert ('local_danger_detected' in card['handoff']['items'][0]['unresolved_reasons']) == expected['danger_detected']
+    assert ('clinical_measurement_review_required' in card['handoff']['items'][0]['unresolved_reasons']) == expected['clinical_review_required']
     assert request('POST', f'/api/events/{rid}/review', {'expected_version': 1, 'action': 'confirm'})[0] == 409
 
 
@@ -142,6 +143,172 @@ def test_requested_and_legacy_rules(text):
 def test_ordinary_inputs_do_not_match(text):
     result = scan_danger(text)
     assert not result['danger_detected'] and result['danger_reminder'] is None
+
+
+@pytest.mark.parametrize(('text', 'rule'), [
+    ('现在胸口很疼。', 'chest'),
+    ('胸部一直疼痛', 'chest'),
+    ('胸口有点痛', 'chest'),
+    ('呼吸十分困难', 'breathing'),
+    ('呼吸有点儿困难', 'breathing'),
+    ('呼吸又快又困难', 'breathing'),
+    ('突然右手无力', 'neurologic_description'),
+    ('突然左腿没劲', 'neurologic_description'),
+    ('突然说不出话', 'neurologic_description'),
+    ('呕吐停不住', 'persistent_vomiting'),
+    ('呕吐还没有停止', 'persistent_vomiting'),
+    ('呕吐无法停止', 'persistent_vomiting'),
+    ('持续呕吐', 'persistent_vomiting'),
+    ('老人连续呕吐，家属问能不能把今天的药全部停掉。', 'persistent_vomiting'),
+    ('血压：180/110', 'extreme_pressure_number'),
+    ('血压为：１８０／１１０', 'extreme_pressure_number'),
+    ('血压 = 180 / 90 mmHg', 'extreme_pressure_number'),
+    ('收缩压：190', 'extreme_pressure_number'),
+    ('低压：45', 'extreme_pressure_number'),
+    ('血压 180.5/80', 'extreme_pressure_number'),
+    ('血压180/110.', 'extreme_pressure_number'),
+    ('血压180/110.5.', 'extreme_pressure_number'),
+    ('收缩压180.', 'extreme_pressure_number'),
+])
+def test_supported_expression_and_measurement_formats(text, rule):
+    result = scan_danger(text)
+    assert rule in result['matched_rules']
+    assert result['escalation_level'] == 'emergency'
+    assert result['review_role'] == 'emergency_services'
+    assert result['danger_reminder'] == DANGER_REMINDER
+    assert result['safety_rule_version'] == RULE_VERSION == 'offline-danger-v2'
+
+
+@pytest.mark.parametrize('text', [
+    '没有胸痛', '今天没有胸痛。', '否认胸痛', '未出现胸闷',
+    '没有呼吸困难', '呕吐已经停止', '呕吐停止了', '呕吐已经停了',
+    '血压：120/80', '血压120.5/80.5', '血压120/80.',
+    '血压120/8000', '血压1800/80', '收缩压1800',
+])
+def test_clear_denials_or_resolved_vomiting_do_not_match(text):
+    result = scan_danger(text)
+    assert result['matched_rules'] == []
+    # This is the scanner's absence of a notice, not an assessment of health.
+    assert result['danger_detected'] is False
+    assert result['danger_reminder'] is None
+    assert 'safe' not in result and 'normal' not in result
+
+
+@pytest.mark.parametrize(('text', 'rules'), [
+    ('没有胸痛但喘不上气', {'breathing'}),
+    ('没有胸痛，后来又胸口很疼', {'chest'}),
+    ('没有胸痛，突然右手无力', {'neurologic_description'}),
+    ('呕吐已经停止，但还是呼吸困难', {'breathing'}),
+    ('呕吐终于停了但止不住血', {'bleeding'}),
+    ('否认胸痛；血压：180/110', {'extreme_pressure_number'}),
+    ('没有胸痛，但呕吐停不下来', {'persistent_vomiting'}),
+    ('没有胸痛。老人胸痛。女儿胸痛。', {'chest'}),
+])
+def test_denial_of_one_mention_does_not_hide_other_evidence(text, rules):
+    result = scan_danger(text)
+    assert set(result['matched_rules']) == rules
+    assert result['danger_detected'] is True
+    assert len(result['matched_rules']) == len(set(result['matched_rules']))
+
+
+@pytest.mark.parametrize('text', [
+    '不是没有胸痛', '并非没有胸痛', '不确定有没有胸痛',
+    '可能没有胸痛', '好像没有胸痛', '不敢说没有胸痛',
+    '没有胸痛吗？', '没有胸痛？', '有没有胸痛',
+    '没有人说没有胸痛', '从未否认胸痛', '没有胸痛是不可能的',
+    '没有胸痛的记录不准确', '没有胸痛还说不准',
+    '如果没有胸痛就散步', '假如没有胸痛就散步',
+    '没有胸痛的证据', '没有胸痛记录，尚待核实',
+    '昨天胸痛，今天好了', '曾经胸痛',
+])
+def test_uncertainty_double_negation_and_history_keep_conservative_notice(text):
+    assert 'chest' in scan_danger(text)['matched_rules']
+
+
+@pytest.mark.parametrize('text', [
+    '呼吸平稳，困难的是买菜', '突然来访。老人说手脚一直无力',
+    '呕吐过一次，后来停止吃饭', '呕吐已经停止',
+])
+def test_patterns_do_not_join_unrelated_clauses(text):
+    assert not scan_danger(text)['danger_detected']
+
+
+@pytest.mark.parametrize('text', [
+    '患者的心率在此前数月曾低至每分钟40次。',
+    '静息脉搏 38 bpm。',
+    '心率低于40次/分。',
+    '心跳≤４０次每分钟。',
+    'HR: 39.5 bpm',
+    '脉搏每分40下',
+    '如果心率40次/分该怎么办？',
+    '心率不是40次/分，是80次/分。',
+])
+def test_low_heart_rate_is_batch_marked_for_clinical_review_only(text):
+    result = scan_danger(text)
+    assert result['danger_detected'] is False
+    assert result['danger_reminder'] is None
+    assert result['clinical_review_flags'] == ['low_heart_rate_candidate']
+    assert result['clinical_review_required'] is True
+    assert result['clinical_review_role'] == 'clinician_or_pharmacist'
+    assert result['clinical_review_version'] == CLINICAL_REVIEW_VERSION
+    assert '不是诊断' in result['clinical_review_notice']
+
+
+@pytest.mark.parametrize('text', [
+    '心率41次/分', '心率40.5次/分', '血压140/40', '40次/分钟走路',
+    '呼吸每分钟20次', '每分钟40次呼吸', '按摩每分钟40下',
+    '心率40mg', '心率40年前', '心率4,000次/分', '心率4000次/分',
+    '心率40次/秒', '心率40次/小时', '心率为0次/分',
+    '心率不详，呼吸每分钟20次', '心率不详。每分钟40次',
+    '心率记录有40个', '脉搏计电量40%', '心率，体温40℃',
+    '心率\n每分钟40次', '心率每分钟40次呼吸', '心率每分钟40次/小时',
+    '心率40bpm2', '心率40次/分米',
+])
+def test_low_heart_rate_candidate_has_context_boundaries(text):
+    result = scan_danger(text)
+    assert result['clinical_review_flags'] == []
+    assert result['clinical_review_required'] is False
+
+
+def test_candidate_survives_confirmation_restart_and_handoff(api):
+    request, store = api
+    raw = '历史资料：心率40次/分，当前情况未核实。'
+    event = create(request, raw)
+    rid = event['record_id']
+    assert event['local_safety']['clinical_review_status'] == 'candidate_unverified'
+    status, result = request('POST', f'/api/events/{rid}/organize', {'expected_version': 1})
+    assert status == 200
+    assert result['output']['review_role'] == 'clinician_or_pharmacist'
+    assert result['output']['escalation_level'] == 'none'
+    assert result['output']['plan_change_allowed'] is False
+    assert result['output']['summary'] == raw
+    status, review = request('POST', f'/api/events/{rid}/review', {'expected_version': 2, 'action': 'confirm'})
+    assert status == 200
+    assert review['event']['confirmation_scope'] == 'record_accuracy'
+    reopened = SQLiteStore(store.path)
+    assert reopened.get(rid)['local_safety']['clinical_review_required']
+    card = reopened.handoff()['items'][0]
+    assert card['unresolved'] is True
+    assert 'clinical_measurement_review_required' in card['unresolved_reasons']
+
+
+def test_candidate_does_not_replace_existing_emergency_route():
+    payload = {'record_id': 'candidate-emergency', 'raw_text': '胸痛伴心率40次/分', 'source_kind': 'elder'}
+    result = adapter.organize_event(payload, adapter.MockProvider())
+    assert result['local_safety']['clinical_review_required'] is True
+    assert result['output']['escalation_level'] == 'emergency'
+    assert result['output']['review_role'] == 'emergency_services'
+    assert DANGER_REMINDER in result['output']['follow_up_questions']
+
+
+def test_candidate_rule_upgrade_is_not_medical_clearance():
+    from backend.safety import reconcile_safety
+    old = dict(scan_danger('心率40次/分'), clinical_review_version='old-review-flags')
+    current = reconcile_safety('心率41次/分', old)
+    assert current['danger_detected'] is False
+    assert current['historical_clinical_review_preserved'] is True
+    assert current['clinical_review_required'] is True
+    assert current['previous_clinical_review_flags'] == ['low_heart_rate_candidate']
 
 
 def test_revision_keeps_owner_and_rescans_raw_text(tmp_path):

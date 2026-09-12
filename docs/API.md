@@ -34,6 +34,18 @@
 
 AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、`raw_text_preserved:true`、`ai_failed:true`、`failure_reason`、`local_safety` 和扁平的 `danger_detected/escalation_level/review_role/danger_reminder`。第一次整理失败时 event 保持 `inbox`，没有伪造 draft。若旧草稿已存在，失败保留原版本和旧草稿；页面必须注明本次重新整理失败，不能把旧结果当成本次成功。危险原文仍可用详情和历史接口查询。
 
+C 部分修订：成功响应及 `event.result_meta` 增加 `model_id`、`prompt_sha256`、`input_sha256`，失败响应与审计也包含这些标识（配置不可读时模型标识为空）。旧记录可能没有新增字段；它们用于开发核查，前端主流程无需展示。提示词版本以 `prompts/VERSION` 为准，哈希覆盖实际拼接的提示词与 Schema，输入哈希覆盖实际发送的原文证据对象。历史草稿和核对备注不会作为新一轮模型证据发送。
+
+通用模型适配后的 422 可额外包含 `failure_code` 和 `provider_http_status`。模型 401/403 展示鉴权或访问权限失败，429 展示限流或额度不足；超时、截断和协议错误有固定原因。它们是下游模型状态，前端仍按 HTTP 422 的原文保真合同处理，不当成当前本地用户登录失效。未知异常不回显原始错误体。
+
+魔搭官方明确返回未绑定阿里云账号时，使用 `failure_code=model_account_binding_required`、`failure_reason=魔搭账号需先绑定阿里云账号`，仍保留 `provider_http_status`。这是精确已知错误的白名单映射，不是把所有 401 都解释为绑定问题。
+
+当前采用结构整理：`summary` 保留完整当前原文，`claims` 逐条保留所引用记录的完整原文，只允许去除外围空白；追问限制为固定中性模板。模型分类和冲突候选仍需核对。自由摘要和片段截取无法通过证据校验时返回 422；界面继续显示原文，不把失败解释为输入无效或医学正常。没有后端 `occurred_time` 时保持 `time.occurred=null`，原文中的时间表达完整保留。
+
+规则升级时，旧记录按新规则重新扫描，旧版本已出现的提醒仍保留，旧数据库证据和历史快照不改写。`local_safety` 可增加 `previous_rule_version`、`previous_danger_detected`、`previous_matched_rules`、`historical_notice_preserved`。最后一项为 true 表示新规则未命中但旧提醒仍在；此时本地 `emergency` 可以与 AI 草稿的 `none` 并存，页面必须显示“历史记录曾触发提醒”，不能只看草稿降级。旧交接卡保持生成时快照；查看最新规则结果应读取事件或重新生成交接材料。每次规则行为变化必须升级规则版本。
+
+新增 `local_safety.clinical_review_flags/clinical_review_required/clinical_review_role/clinical_review_notice/clinical_review_version/clinical_review_status` 为可选兼容字段。`offline-review-flags-v1` 仅对带明确心率指标、分钟单位的 `0 < 数值 <= 40` 表达生成 `low_heart_rate_candidate`；这是工程复核线索，不是医学阈值认证。历史、否定和假设也可能标记，状态始终为 `candidate_unverified`，没有匹配为 `not_flagged`，不得显示“医学正常”。标记会随保存/详情/失败响应保留；新成功草稿至少路由专业复核，既有急救级别优先。记录确认不能清除交接中的 `clinical_measurement_review_required`。旧候选版本变化时可带 `previous_clinical_review_version/previous_clinical_review_flags/historical_clinical_review_preserved`，保留历史待核线索和旧证据；旧卡仍是历史快照。上线前医学审阅清单见 [临床规则草案](CLINICAL-RULE-DRAFT.md)。
+
 ```json
 {
   "ok": false,

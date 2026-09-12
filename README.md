@@ -43,7 +43,7 @@ py -3.12 -m venv .venv
 
 访问 <http://127.0.0.1:18768/health> 应看到 `ok: true`。前端尚未构建时首页 `/` 可能返回 404；后端 API 仍可独立联调。数据库自动保存在 `runtime/records.sqlite3`。
 
-复制 `.env.example` 后，文本整理和媒体识别的 Mock 都是显式的离线配置，不需要密钥、不调用外部 AI；页面必须明确标记为离线演示，不应对评委宣称为真实识别结果。未配置媒体 provider 时识别返回 `provider_not_configured`，不会静默改用 Mock。媒体写入口还要求在 `.env` 中配置三项正整数资源保护边界；未配置时可读取能力端点，但写入返回 `503 media_limits_not_configured`。密钥不进仓库。本版本真实模型调用尚未验证。
+复制 `.env.example` 后，文本整理和媒体识别的 Mock 都是显式的离线配置，不需要密钥、不调用外部 AI；页面必须明确标记为离线演示，不应对评委宣称为真实识别结果。未配置媒体 provider 时识别返回 `provider_not_configured`，不会静默改用 Mock。媒体写入口还要求在 `.env` 中配置三项正整数资源保护边界；未配置时可读取能力端点，但写入返回 `503 media_limits_not_configured`。密钥不进仓库。本版本真实模型调用已有有限成功证据，范围见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)，不代表完整语义或临床验收。
 
 另开一个终端，进入同一目录并启用环境，即可运行：
 
@@ -59,6 +59,12 @@ python -m pytest -q
 
 # 40 条合成用例的结构与指定安全规则回归
 python -m backend.evaluate_mock
+
+# 新 11 条 C 部分合成用例的自动断言；报告仍标记需人工复核项
+python -m backend.evaluate_mock --dataset data/synthetic/c-model-smoke.json --strict
+
+# 配好本地 .env 后验证真实模型（脚本名兼容旧命名，也支持 DeepSeek）
+python -m backend.evaluate_modelscope --dataset data/synthetic/c-model-smoke.json --out runtime/evaluations/c-real-model.json
 
 # 对常用数据库做一致性备份
 python -m scripts.backup
@@ -112,6 +118,7 @@ curl http://127.0.0.1:18768/api/media/capabilities
 | [docs/B-INTEGRATION-HANDOFF.md](docs/B-INTEGRATION-HANDOFF.md) | A/C/D/E 与 B 的同步联调、合并顺序和比赛冻结门槛 |
 | [docs/decisions/0001-backend-mvp-stack.md](docs/decisions/0001-backend-mvp-stack.md) | 比赛 MVP 后端技术栈与开发规则 |
 | [docs/team/README.md](docs/team/README.md) | 两人任务入口、已确认需求、待定事项、文件所有权和 Codex 开场话 |
+| [HANDOFF-C.md](HANDOFF-C.md) | C 模块合并入口、配置、共享文件审阅地图和验证证据 |
 | [docs/team/INTEGRATION.md](docs/team/INTEGRATION.md) | 分支、PR、合同先行、依赖合并、联合验收和交接 |
 | [docs/API.md](docs/API.md) | 前后端正式接线合同，包含失败与危险提醒 |
 | [contracts/api.ts](contracts/api.ts) | 与当前接口对应的 TypeScript 类型，供前端导入参考 |
