@@ -18,7 +18,7 @@
 
 - A：以 `docs/API.md` 和 `contracts/api.ts` 为唯一接口合同；所有写入使用刚收到的版本；422 先解析 JSON，409 重新 GET；后端重启后重新读取 `/health`。
 - C：保持 `Provider.complete_json` 接缝和现有成功/失败 HTTP 包装；不得直接写数据库或改变冻结字段。
-- D：按 HTTP 可见行为验收；112 项测试是当前 B 分支的软件回归，不是临床验证或真实模型质量证明。
+- D：按 HTTP 可见行为验收；113 项测试是当前 B 分支的软件回归，不是临床验证或真实模型质量证明。
 - E：先合并 B 的合同底座，再收口 C/D/A；在唯一发布候选提交上重新跑全部门槛，不能直接引用个人分支结果。
 
 完整说明见 [B-INTEGRATION-HANDOFF.md](B-INTEGRATION-HANDOFF.md)。
@@ -27,7 +27,7 @@
 
 当前 B 分支本地结果：
 
-- [x] `python -m pytest -q`：112 passed；JUnit 见 `docs/evidence/b-backend-tests.xml`
+- [x] `python -m pytest -q`：113 passed；JUnit 见 `docs/evidence/b-backend-tests.xml`
 - [x] `npm ci && npm run check:contracts`：TypeScript 合同严格编译
 - [x] `python -m backend.evaluate_mock`：40/40，errors 0
 - [x] `python -m scripts.demo`：passed true，Mock，1 位患者、3 段公开病例改编摘要

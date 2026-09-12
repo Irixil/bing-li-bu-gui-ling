@@ -1,39 +1,12 @@
-import json
-import threading
-import urllib.error
-import urllib.request
 from contextlib import contextmanager
-from http.server import ThreadingHTTPServer
 
 import pytest
 
 from backend import server
 from backend.store import SQLiteStore
-
+from tests.http_support import HttpClient, running_http_server
 
 ALLOWED_FRONTEND_ORIGIN = "http://localhost:5173"
-
-
-class HttpClient:
-    def __init__(self, base_url):
-        self.base_url = base_url
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-
-    def request(self, method, path, body=None, headers=None):
-        request = urllib.request.Request(
-            self.base_url + path,
-            method=method,
-            headers=headers or {},
-            data=None if body is None else json.dumps(body).encode("utf-8"),
-        )
-        try:
-            response = self.opener.open(request, timeout=5)
-        except urllib.error.HTTPError as exc:
-            response = exc
-        with response:
-            raw_body = response.read()
-            payload = json.loads(raw_body) if raw_body else None
-            return response.status, response.headers, payload
 
 
 @contextmanager
@@ -43,15 +16,8 @@ def running_api(tmp_path, monkeypatch, allowed_origin):
         server, "STORE", SQLiteStore(tmp_path / "cors-contract.sqlite3")
     )
     monkeypatch.setattr(server, "ALLOWED_ORIGIN", allowed_origin)
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
-    worker = threading.Thread(target=httpd.serve_forever, daemon=True)
-    worker.start()
-    try:
-        yield HttpClient(f"http://127.0.0.1:{httpd.server_port}")
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        worker.join(timeout=2)
+    with running_http_server(server.Handler) as base_url:
+        yield HttpClient(base_url)
 
 
 @pytest.fixture
@@ -75,9 +41,9 @@ def comma_separated_header_values(headers, name):
 
 
 def session_token(client):
-    status, _, body = client.request("GET", "/health")
-    assert status == 200
-    return body["session_token"]
+    response = client.request("GET", "/health")
+    assert response.status == 200
+    return response.body["session_token"]
 
 
 def event_payload(text):
@@ -85,7 +51,7 @@ def event_payload(text):
 
 
 def test_allowed_origin_preflight_advertises_cors_write_contract(cross_origin_api):
-    status, headers, body = cross_origin_api.request(
+    response = cross_origin_api.request(
         "OPTIONS",
         "/api/events",
         headers={
@@ -97,24 +63,24 @@ def test_allowed_origin_preflight_advertises_cors_write_contract(cross_origin_ap
         },
     )
 
-    assert status == 204
-    assert body is None
-    assert headers["Access-Control-Allow-Origin"] == ALLOWED_FRONTEND_ORIGIN
-    assert "origin" in comma_separated_header_values(headers, "Vary")
+    assert response.status == 204
+    assert response.body is None
+    assert response.headers["Access-Control-Allow-Origin"] == ALLOWED_FRONTEND_ORIGIN
+    assert "origin" in comma_separated_header_values(response.headers, "Vary")
     assert "post" in comma_separated_header_values(
-        headers, "Access-Control-Allow-Methods"
+        response.headers, "Access-Control-Allow-Methods"
     )
     assert {
         "content-type",
         "idempotency-key",
         "x-session-token",
-    } <= comma_separated_header_values(headers, "Access-Control-Allow-Headers")
+    } <= comma_separated_header_values(response.headers, "Access-Control-Allow-Headers")
 
 
 def test_write_from_unexpected_origin_is_rejected_even_with_valid_session_token(
     cross_origin_api,
 ):
-    status, headers, body = cross_origin_api.request(
+    response = cross_origin_api.request(
         "POST",
         "/api/events",
         event_payload("今天散步二十分钟。"),
@@ -126,9 +92,9 @@ def test_write_from_unexpected_origin_is_rejected_even_with_valid_session_token(
         },
     )
 
-    assert status == 403
-    assert body == {"ok": False, "error": "csrf_or_origin_rejected"}
-    assert headers.get("Access-Control-Allow-Origin") is None
+    assert response.status == 403
+    assert response.body == {"ok": False, "error": "csrf_or_origin_rejected"}
+    assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
 @pytest.mark.parametrize("origin_mode", ["same-origin", "no-origin"])
@@ -143,14 +109,14 @@ def test_session_token_write_is_usable_for_same_origin_or_originless_caller(
     if origin_mode == "same-origin":
         headers["Origin"] = same_origin_api.base_url
 
-    status, _, body = same_origin_api.request(
+    response = same_origin_api.request(
         "POST",
         "/api/events",
         event_payload(f"{origin_mode} 写入可用。"),
         headers=headers,
     )
 
-    assert status == 201
-    assert body["ok"] is True
-    assert body["created"] is True
-    assert body["event"]["raw_text"] == f"{origin_mode} 写入可用。"
+    assert response.status == 201
+    assert response.body["ok"] is True
+    assert response.body["created"] is True
+    assert response.body["event"]["raw_text"] == f"{origin_mode} 写入可用。"

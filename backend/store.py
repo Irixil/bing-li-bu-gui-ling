@@ -595,9 +595,11 @@ class SQLiteStore:
             self.aud(c, rid, 'organized', event['version'], actor, {'provider': meta.get('provider')})
             return event
 
-    def fail(self, rid, action, actor, details):
+    def fail(self, rid, expected, action, actor, details):
+        expected = expected_version(expected)
+        text_field(actor, 'actor_name', 80)
         with self.transaction() as c:
-            event = self._get(c, rid)
+            event = self._versioned(c, rid, expected)
             self.aud(c, rid, action, event['version'], actor, details)
 
     def review(self, rid, expected, action, actor, note):
