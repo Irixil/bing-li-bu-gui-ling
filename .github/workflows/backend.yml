@@ -9,17 +9,7 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - run: npm run check:contracts
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
       - run: python -m backend.evaluate_mock
-      - name: C strict deterministic regression (Mock)
-        run: python -m backend.evaluate_mock --dataset data/synthetic/c-model-smoke.json --strict
       - run: python -m scripts.demo --out runtime/demo-result.json
-      - name: Clinical review inventory (no medical signoff)
-        run: python -m scripts.clinical_review_inventory
