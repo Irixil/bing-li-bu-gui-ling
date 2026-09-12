@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" role="img" aria-labelledby="title desc">
+  <title id="title">羊角不归零</title>
+  <desc id="desc">由圆润羊角和记录线组成的不归零符号</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EEF0FF"/><stop offset="1" stop-color="#FFF2E5"/></linearGradient></defs>
+  <circle cx="240" cy="240" r="220" fill="url(#bg)"/>
+  <path d="M235 235C180 155 90 168 88 238c-2 72 90 83 148 8" fill="none" stroke="#5954F6" stroke-width="25" stroke-linecap="round"/>
+  <path d="M245 235c55-80 145-67 147 3 2 72-90 83-148 8" fill="none" stroke="#5954F6" stroke-width="25" stroke-linecap="round"/>
+  <path d="M169 223c19-30 43-45 71-45s52 15 71 45" fill="none" stroke="#F2B67D" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="214" cy="244" r="8" fill="#16143D"/><circle cx="266" cy="244" r="8" fill="#16143D"/>
+  <path d="M227 273c8 7 18 7 26 0" fill="none" stroke="#16143D" stroke-width="7" stroke-linecap="round"/>
+  <path d="M181 331c39 20 79 20 118 0" fill="none" stroke="#F2B67D" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="181" cy="331" r="8" fill="#F2B67D"/><circle cx="299" cy="331" r="8" fill="#F2B67D"/>
+</svg>
