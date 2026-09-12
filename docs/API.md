@@ -1,8 +1,8 @@
-# 前后端接口合同 v0.3
+# 前后端接口合同 v0.4
 
-本页描述现有文本接口。语音／照片上传与识别尚未实现，开发要求见 [团队入口](team/README.md)，拟议接口见 [媒体合同草案](team/MEDIA-CONTRACT.md)；不能把草案端点作为已可调用能力。实现 PR 必须同步本页、`contracts/api.ts` 和前端接线说明。
+本页描述现有文本接口，以及本轮已经由 `backend/server.py` 和 HTTP 专项测试固定的媒体接口。默认启动已经连接本地文件存储、SQLite 媒体状态和 B 的识别模块；真实 ASR/OCR、浏览器、手机和生产部署仍未验证。
 
-服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）。**只有创建记录要求 `Idempotency-Key`**；其余写入用 `expected_version` 防止覆盖。服务重启后重新获取 token。
+服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。JSON 写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）；媒体上传按下文使用 `multipart/form-data`。文本记录只有创建要求 `Idempotency-Key`；媒体创建、分片、完成和识别启动都要求各自的 `Idempotency-Key`。服务重启后重新获取 token。
 
 `organize`、`review`、`revise` 的 `expected_version` 都必须是正整数。缺失、布尔值、字符串、零或负数返回 `400 expected_version_must_positive_integer`；与当前版本不一致返回 `409 stale_version`。服务器不会替调用方自动选择最新版本。
 
@@ -73,6 +73,104 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 
 卡片是生成时的快照。后续修订不会修改旧卡片；希望显示最新内容需要重新 POST 生成。当前不直接提供 PDF 或真正的分享链接，前端负责可读页面或浏览器打印。
 
+## 媒体 HTTP 适配器
+
+当前可验证范围包括默认本地后端的文件存储、SQLite 状态、识别编排，以及 HTTP 的 session/Origin 保护、上传与分片重放、原件读取与 Range、异步识别入口。HTTP 专项测试仍使用替身隔离解析层，默认后端另有组合测试；真实 ASR/OCR、浏览器和手机仍未验收。
+
+所有媒体写请求带 `X-Session-Token` 和 `Idempotency-Key`；带 JSON 正文的请求使用 `application/json`，上传步骤使用 `multipart/form-data`。创建上传、上传分片和完成上传都会持久化幂等信息并检查冲突；同一次可重试请求应复用同一键和完全相同的内容，下一步操作使用新键。
+
+媒体能力由 `GET /api/media/capabilities` 公开。必须配置合法正整数 `MEDIA_UPLOAD_MAX_BYTES`、`MEDIA_UPLOAD_PART_MAX_BYTES`、`MEDIA_UPLOAD_MAX_PARTS` 才能写入媒体；任一缺失或非法时写入口返回 `503 media_limits_not_configured`。`MEDIA_REQUEST_MAX_BYTES` 仍可作为额外的 multipart 请求保护上限。所有这些都是资源保护边界，不是产品文件大小、录音时长或图片像素限制。
+
+### `GET /api/media/capabilities` 能力发现
+
+成功返回 `200`：
+
+```json
+{
+  "ok": true,
+  "capabilities": {
+    "enabled": true,
+    "disabled_reason": null,
+    "max_total_bytes": 1048576,
+    "max_part_bytes": 1048576,
+    "max_parts": 16,
+    "max_audio_duration_seconds": null,
+    "max_image_pixels": null,
+    "audio_content_types": ["audio/wav", "audio/webm"],
+    "image_content_types": ["image/png", "image/jpeg"],
+    "multipart_upload": true,
+    "resumable_parts": true
+  }
+}
+```
+
+未配置或配置非法时仍返回 `200`，但 `capabilities.enabled=false`、`disabled_reason="media_limits_not_configured"`，所有媒体写请求返回 `503`。音频时长和图片像素保持 `null`；当前真实设备格式、时长、像素和大文件性能仍未验证。
+
+### `POST /api/media/uploads` 创建上传元数据
+
+请求是 `multipart/form-data`，这一步**不带文件**。字段为：
+
+| 字段 | 当前形状 |
+|---|---|
+| `kind` | `audio` 或 `image` |
+| `content_type` | 预期媒体 MIME，例如 `audio/webm`、`image/png` |
+| `total_parts` | 十进制整数；片段索引随后使用 `0..total_parts-1` |
+| `actor_name` | 可选上传人；省略为“老人”，最多 80 字符 |
+| `occurred_time` | 可选发生时间字符串；未知时省略 |
+| `original_filename` | 可选展示名；不能作为服务端路径 |
+| `expected_size` | 可选十进制整数 |
+| `expected_sha256` | 可选 SHA-256 |
+
+首次返回 `201 {ok:true,created:true,upload}`；相同请求重放返回 `200` 且 `created:false`。`upload` 至少包含 `upload_id`、`media_id`、`kind`、`content_type`、`total_parts`、`status:"uploading"`。创建元数据不表示原件已保存，媒体在完成前不能显示“上传成功”。
+
+### `POST /api/media/uploads/{upload_id}/parts/{index}` 上传片段
+
+请求是 `multipart/form-data`，并且只能有一个名为 `file` 的文件字段，不能夹带其他文本字段。第一个片段索引为 `0`。首次返回 `201 {ok:true,created:true,part}`；重放同一片返回 `200` 且 `created:false`。`part` 至少包含 `upload_id`、`index` 和 `size_bytes`。同一幂等键或同一片索引改成其他内容属于冲突，不得覆盖已保存片段。
+
+### `POST /api/media/uploads/{upload_id}/complete` 完成上传
+
+请求当前必须是 JSON 空对象 `{}`；**不要发送**早期草案中的 `expected_version` 或 `part_count`，片段总数已经在创建上传时声明。请求仍必须带 `Idempotency-Key`。完成步骤会持久化该键及最终上传摘要：同一上传、同一摘要的重放返回 `200 created:false`；同键用于另一上传或不同最终摘要返回 `409 idempotency_key_payload_mismatch`。所有片段存在并完成后，首次返回 `201 {ok:true,created:true,media}`；只有响应中 `media.save_status="saved"` 才能显示“原件已保存”。缺片返回 `409 upload_incomplete`。
+
+公共 `media` 不包含服务端路径或原件字节，核心字段为 `media_id`、`kind`、`content_type`、`size_bytes`、`sha256`、`save_status`、`recognition_status`、`link_status` 和 `version`。当前持久化层还会返回 `original_filename`、上传进度、`attempts`、当前 `recognition` 和 `event_link`；实现还保留了兼容别名 `upload_status`，前端应以 `save_status` 为准。状态集合为：
+
+```text
+save_status:        uploading | saved | failed
+recognition_status: not_started | processing | succeeded | failed | interrupted
+link_status:        not_linked | pending | linked | link_failed
+```
+
+### 查询媒体与读取原件
+
+- `GET /api/media` 返回 `200 {ok:true,media:[...]}`。
+- `GET /api/media/{media_id}` 返回 `200 {ok:true,media}`，是识别轮询入口；识别尝试列表位于 `media.attempts`，详情可包含完整机器初稿，列表不返回完整文字。
+- `GET /api/media/{media_id}/original` 必须带 `X-Session-Token`，返回原件字节和媒体 `Content-Type`，并声明 `Accept-Ranges: bytes`。
+
+原件读取支持单个 `Range: bytes=start-end`、`bytes=start-` 或 `bytes=-length`；成功为 `206` 并带 `Content-Range`，非法范围为 `416 invalid_range`。token 不得放进 URL。HTTP 专项测试覆盖了按 ID 读取和路径穿越拒绝，但真实浏览器 Blob 播放、手机媒体格式、超大原件的内存表现和磁盘完整性故障仍未验收。
+
+### `POST /api/media/{media_id}/recognize` 启动识别
+
+请求为：
+
+```json
+{"expected_version":1,"actor_name":"老人"}
+```
+
+`actor_name` 可选，省略时后端使用“本地用户”。当前成功入口返回 `202 {ok:true,accepted:true,attempt_id,media}`；同一请求重放仍返回 `202` 和同一 `attempt_id`。`202` 只表示任务已经接受或处于处理中，**不表示识别成功**。前端随后轮询媒体详情的 `recognition_status`，不能等待这个 POST 返回识别全文。
+
+识别结果若含 `recognition.is_mock:true`，页面必须明确写“离线 Mock 演示模式”，不能冒充真实 ASR/OCR。Mock 不证明音频或图片内容被真实识别。本轮尚未验证真实 ASR/OCR、浏览器和手机；失败后原件仍应通过原件接口可读。`POST /api/media/{media_id}/link` 可复用已经保存的成功初稿恢复 Event 关联，不会再次调用识别服务。
+
+### `POST /api/media/{media_id}/link` 恢复 Event 关联
+
+当前请求可为空对象，也可带可选的 `actor_name` 和 `expected_version`：
+
+```json
+{"actor_name":"老人","expected_version":6}
+```
+
+请求必须带新的 `Idempotency-Key`；`expected_version` 如果提供必须是正整数，版本过期返回 `409 stale_version`。该接口只复用已持久化的成功初稿，不再次调用识别；首次创建 Event 返回 `201`，已有链接或重复恢复返回 `200`。识别未成功、危险扫描未完成或全文超过 10000 字符时不会创建空 Event，并保留媒体和可恢复状态。
+
+媒体常见错误为 `{ok:false,error:"稳定错误码"}`，包括 `media_limits_not_configured`、`request_too_large`、`unsupported_format`、`media_not_found`、`upload_not_found`、`upload_incomplete`、`idempotency_key_payload_mismatch`、`stale_version`、`provider_not_configured`、`provider_timeout`、`invalid_range`、`media_backend_unavailable` 和 `media_request_failed`。不要向用户展示路径、供应商原始正文或内部异常。
+
 ## 状态和常见错误
 
 | 状态 | 含义 | 可继续动作 |
@@ -85,7 +183,7 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 
 所有状态都不是医学安全等级。200/201 为成功；400 为字段或请求格式错误；403 为本地 token/Origin 错误；404 为记录不存在；409 为版本、状态或幂等键冲突；422 为整理失败；500 为未预期的服务端错误。一般错误格式 `{ok:false,error:"错误码"}`。未预期异常只返回 `internal_server_error`，不会向客户端暴露数据库路径、供应商正文或内部异常信息。数据库本身无法保存时，不能显示“已保存”。
 
-浏览器不使用开发代理而直接跨域访问时，后端 `.env` 的 `ALLOWED_ORIGIN` 必须与页面 Origin 完全一致。预检支持 `GET, POST, OPTIONS`，并允许 `Content-Type`、`Idempotency-Key`、`X-Session-Token` 和兼容账号接口使用的 `X-Auth-Token`。不匹配的 Origin 不会获得跨域许可，写请求返回 403。
+浏览器不使用开发代理而直接跨域访问时，后端 `.env` 的 `ALLOWED_ORIGIN` 必须与页面 Origin 完全一致。预检支持 `GET, POST, OPTIONS`，并允许 `Content-Type`、`Idempotency-Key`、`X-Session-Token`、原件读取使用的 `Range` 和兼容账号接口使用的 `X-Auth-Token`。不匹配的 Origin 不会获得跨域许可，写请求返回 403。
 
 ## 前端必须怎么处理
 

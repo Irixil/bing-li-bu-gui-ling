@@ -322,6 +322,22 @@ export type Handoff = {
   household_id: string | null;
   items: HandoffItem[];
   unresolved_count: number;
+  media_attachments?: MediaHandoffAttachment[];
+};
+
+export type MediaHandoffAttachment = {
+  media_id: string;
+  kind: MediaKind;
+  save_status: MediaSaveStatus;
+  recognition_status: MediaRecognitionStatus;
+  is_mock: boolean | null;
+  link_status: MediaLinkStatus;
+  record_id: string | null;
+  pending_reason: string | null;
+  has_text: boolean;
+  local_safety: LocalSafety | null;
+  unresolved: boolean;
+  unresolved_reasons: string[];
 };
 
 export type HandoffResponse = {
@@ -331,6 +347,232 @@ export type HandoffResponse = {
 
 export type CreateHandoffResponse = HandoffResponse;
 export type HandoffDetailResponse = HandoffResponse;
+
+/** Media HTTP adapter contract. The default runtime backend is local SQLite/filesystem. */
+export type MediaKind = "audio" | "image";
+export type MediaSaveStatus = "uploading" | "saved" | "failed";
+export type MediaRecognitionStatus =
+  | "not_started"
+  | "processing"
+  | "succeeded"
+  | "failed"
+  | "interrupted";
+export type MediaLinkStatus =
+  | "not_linked"
+  | "pending"
+  | "linked"
+  | "link_failed";
+
+export type MediaRecognitionError = {
+  code: string;
+  message: string;
+  retryable: boolean;
+};
+
+export type MediaRecognitionAttempt = {
+  attempt_id: string;
+  media_id?: string;
+  status: Exclude<MediaRecognitionStatus, "not_started">;
+  provider?: string | null;
+  model?: string | null;
+  is_mock?: boolean | null;
+  text?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  retryable?: boolean | null;
+  started_at?: string;
+  finished_at?: string | null;
+  created_at?: string;
+  local_safety?: LocalSafety;
+};
+
+export type MediaEventLink = {
+  record_id: string;
+  attempt_id: string;
+  linked_at: string;
+};
+
+/** Public JSON media shape; server-owned paths and original bytes are absent. */
+export type Media = {
+  media_id: string;
+  kind: MediaKind;
+  content_type: string;
+  size_bytes: number | null;
+  sha256: string | null;
+  save_status: MediaSaveStatus;
+  recognition_status: MediaRecognitionStatus;
+  link_status: MediaLinkStatus;
+  version: number;
+  original_filename?: string | null;
+  household_id?: string;
+  upload_id?: string | null;
+  expected_parts?: number | null;
+  uploaded_parts?: number;
+  current_attempt_id?: string | null;
+  upload_error_code?: string | null;
+  upload_error_message?: string | null;
+  recognition?: MediaRecognitionAttempt | null;
+  event_link?: MediaEventLink | null;
+  record_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  error?: MediaRecognitionError;
+};
+
+export type MediaCapabilities = {
+  enabled: boolean;
+  disabled_reason: "media_limits_not_configured" | null;
+  max_total_bytes: number | null;
+  max_part_bytes: number | null;
+  max_parts: number | null;
+  max_audio_duration_seconds: null;
+  max_image_pixels: null;
+  audio_content_types: string[];
+  image_content_types: string[];
+  multipart_upload: true;
+  resumable_parts: true;
+};
+
+export type MediaCapabilitiesResponse = {
+  ok: true;
+  capabilities: MediaCapabilities;
+};
+
+/** Fields in POST /api/media/uploads multipart/form-data. No file is sent here. */
+export type CreateMediaUploadRequest = {
+  kind: MediaKind;
+  content_type: string;
+  total_parts: number;
+  actor_name?: string;
+  occurred_time?: string | null;
+  expected_size?: number;
+  expected_sha256?: string;
+  original_filename?: string;
+};
+
+export type MediaUpload = {
+  upload_id: string;
+  media_id: string;
+  kind: MediaKind;
+  content_type: string;
+  total_parts: number;
+  status: "uploading";
+};
+
+export type CreateMediaUploadResponse = {
+  ok: true;
+  created: boolean;
+  upload: MediaUpload;
+};
+
+export type CompleteMediaUploadRequest = Record<string, never>;
+
+/** Fields in POST /api/media/uploads/{upload_id}/parts/{index}. */
+export type MediaPartUploadRequest = {
+  file: Blob;
+};
+
+export type MediaUploadPart = {
+  upload_id: string;
+  index: number;
+  size_bytes: number;
+};
+
+export type MediaPartUploadResponse = {
+  ok: true;
+  created: boolean;
+  part: MediaUploadPart;
+};
+
+export type CompleteMediaUploadResponse = {
+  ok: true;
+  created: boolean;
+  media: Media & { save_status: "saved" };
+};
+
+export type MediaListResponse = {
+  ok: true;
+  media: Media[];
+};
+
+export type MediaDetailResponse = {
+  ok: true;
+  media: Media;
+};
+
+export type StartMediaRecognitionRequest = {
+  expected_version: number;
+  actor_name?: string;
+};
+
+/** 202 means accepted/processing, not that recognition succeeded. */
+export type StartMediaRecognitionResponse = {
+  ok: true;
+  accepted: true;
+  attempt_id: string;
+  media: Media & { recognition_status: "processing" };
+};
+
+export type LinkMediaResponse = {
+  ok: true;
+  linked: boolean;
+  event_created?: boolean;
+  media: Media;
+  event?: Event;
+};
+
+export type LinkMediaRequest = {
+  expected_version: number;
+  actor_name?: string;
+};
+
+export type MediaWriteHeaders = {
+  "X-Session-Token": string;
+  "Idempotency-Key": string;
+};
+
+export type MediaOriginalRequestHeaders = {
+  "X-Session-Token": string;
+  Range?: `bytes=${string}`;
+};
+
+export const MEDIA_HTTP_ERROR_CODES = [
+  "request_too_large",
+  "unsupported_format",
+  "content_type_kind_mismatch",
+  "media_not_found",
+  "upload_not_found",
+  "idempotency_key_payload_mismatch",
+  "upload_conflict",
+  "upload_incomplete",
+  "upload_completed",
+  "stale_version",
+  "idempotency_key_required",
+  "invalid_media",
+  "invalid_upload",
+  "invalid_part",
+  "integrity_mismatch",
+  "provider_timeout",
+  "provider_unavailable",
+  "provider_not_configured",
+  "provider_auth_failed",
+  "provider_rate_limited",
+  "invalid_provider_response",
+  "no_text_detected",
+  "storage_failed",
+  "media_request_failed",
+  "media_backend_unavailable",
+  "invalid_range",
+  "csrf_or_origin_rejected",
+  "not_found",
+  "internal_server_error",
+] as const;
+
+export type MediaHttpErrorCode = (typeof MEDIA_HTTP_ERROR_CODES)[number];
+export type MediaErrorResponse = {
+  ok: false;
+  error: MediaHttpErrorCode;
+};
 
 /**
  * Stable error codes returned by the core elder-facing HTTP routes.
