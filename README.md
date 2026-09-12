@@ -2,9 +2,22 @@
 
 帮助老人把自己的健康情况记下来，整理成有原文、有来源、时间不确定也不会乱填的记录，在复诊时带着连续资料去沟通。
 
-当前交付是 **可运行后端 + 五人协作资料 + 公开病例演示数据**。本轮只改后端；前端由项目负责人开发，目前没有可展示的网页。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
+当前交付是 **可运行的文本后端 + 两人媒体后端开发任务包 + 公开病例演示数据**。语音／照片接入是本次开发目标，目前尚未实现；前端由项目负责人在独立任务开发，尚未在本主仓库完成整体验收。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
 
 **团队只使用本仓库。** 历史多版本总包不属于当前开发包。代码底座保留最新持久化版本已有的记录、整理、核对、修订、历史和交接卡能力。
+
+## 两位后端同学从这里开始
+
+用 Git 克隆仓库并在 Codex 打开，告诉它“我负责任务 A”或“我负责任务 B”。先读 [团队入口与可复制的开场话](docs/team/README.md)，Codex 会按根目录 AGENTS.md 找到对应要求，核对现状并说明路线，确认后再开发。
+
+| 选择 | 负责内容 | 任务单 |
+|---|---|---|
+| 任务 A | 文件保存／读取、SQLite 状态、重试与幂等、Event 关联、API、备份恢复 | [TASK-A-MEDIA.md](docs/team/TASK-A-MEDIA.md) |
+| 任务 B | 语音转文字、照片识字、真实服务与失败处理、模型证据 | [TASK-B-RECOGNITION.md](docs/team/TASK-B-RECOGNITION.md) |
+
+共同阅读 [接口草案](docs/team/MEDIA-CONTRACT.md) 与 [提交合并指南](docs/team/INTEGRATION.md)。两人分别推分支、发 PR，集成人按依赖顺序合并；不要上传整个文件夹覆盖仓库。
+
+录音已确认“长时间无声先提醒，无回应再暂停，保留内容并可接着说”。具体时间和检测方法待真机验证；此前 **60 秒强制结束要求已撤回**，不得写成默认值或拒收规则。
 
 ## 十分钟启动
 
@@ -36,7 +49,7 @@ py -3.12 -m venv .venv
 
 2026-09-12 用户绑定阿里云后，按其新选择接通魔搭 `deepseek-ai/DeepSeek-V4-Pro-0813`，已取得通过应用校验的真实输出；首次单条耗时约 41.9 秒。此前 V4.1-Flash 的无可用提供方错误保留为历史证据。连通成功不等于完整语义或临床验收，批次结果和剩余问题以联调报告为准。
 
-2026-09-12 C 部分本地修订采用“结构整理、完整原文保留”，模型负责分类和标记，暂不生成自由摘要。提示词为 `prompt-v0.5`，离线危险规则为 `offline-danger-v2`，独立专业复核候选为 `offline-review-flags-v1`。修复与第一性原理对抗审查见 [docs/C-REVIEW.md](docs/C-REVIEW.md)；AI 起草的规则与医学待审清单见 [临床规则草案](docs/CLINICAL-RULE-DRAFT.md)，阶段计时仅作禁用占位。本地改动尚未上传 GitHub。
+2026-09-12 C 部分修订采用“结构整理、完整原文保留”，模型负责分类和标记，暂不生成自由摘要。提示词为 `prompt-v0.5`，离线危险规则为 `offline-danger-v2`，独立专业复核候选为 `offline-review-flags-v1`。修复与第一性原理对抗审查见 [docs/C-REVIEW.md](docs/C-REVIEW.md)；AI 起草的规则与医学待审清单见 [临床规则草案](docs/CLINICAL-RULE-DRAFT.md)，阶段计时仅作禁用占位。C 的合并步骤、共享字段审阅与验证入口见 [HANDOFF-C.md](HANDOFF-C.md)。
 
 另开一个终端，进入同一目录并启用环境，即可运行：
 
@@ -79,7 +92,10 @@ python -m scripts.backup
 
 | 文件/目录 | 用途 |
 |---|---|
-| [docs/PROJECT-PLAN.md](docs/PROJECT-PLAN.md) | 当前定位、清理取舍、五人分工、今晚和明天的顺序 |
+| [docs/team/README.md](docs/team/README.md) | 两人任务入口、已确认需求、待定事项、文件所有权和 Codex 开场话 |
+| [HANDOFF-C.md](HANDOFF-C.md) | C 模块合并入口、配置、共享文件审阅地图和验证证据 |
+| [docs/team/INTEGRATION.md](docs/team/INTEGRATION.md) | 分支、PR、合同先行、依赖合并、联合验收和交接 |
+| [docs/PROJECT-PLAN.md](docs/PROJECT-PLAN.md) | 当前定位、范围、实施顺序与已知限制 |
 | [docs/API.md](docs/API.md) | 前后端正式接线合同，包含失败与危险提醒 |
 | [contracts/api.ts](contracts/api.ts) | 与当前接口对应的 TypeScript 类型，供前端导入参考 |
 | [frontend/README.md](frontend/README.md) | 项目负责人的前端任务与验收清单 |
@@ -87,6 +103,6 @@ python -m scripts.backup
 | [data/public_cases/README.md](data/public_cases/README.md) | 真实公开病例的许可、来源与改编说明 |
 | `backend/` | API、持久化、模型适配、本地规则 |
 | `tests/`、`scripts/` | 回归测试、演示、备份 |
-| `.dz/`、`PROJECT.md` | AI 接管记忆；完整五人方案仍是建议稿，不代表团队已经验收 |
+| `.dz/`、`PROJECT.md` | AI 接管记忆；本次发布协作需求不代表媒体实现或验收通过 |
 
 项目代码暂未授予通用开源许可证；团队可以从本仓库协作开发。公开病例改编资料的 CC BY 4.0 许可单独适用，不应混为整个仓库的许可证。

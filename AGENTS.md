@@ -18,7 +18,9 @@ Project-local commands, architecture and stable conventions may be added outside
 
 ## Repository working conventions
 
-- Active MVP scope and proposed ownership: `docs/PROJECT-PLAN.md`. API truth: `docs/API.md` with `contracts/api.ts`; implementation lives in `backend/`.
+- Start team assignments at `docs/team/README.md`: if the user says “任务 A / 文件、状态、API”, read `docs/team/TASK-A-MEDIA.md`; if they say “任务 B / ASR、OCR、识别”, read `docs/team/TASK-B-RECOGNITION.md`. Both read `docs/team/MEDIA-CONTRACT.md` and `docs/team/INTEGRATION.md`. Explain ownership, present status, dependencies and the first step before editing; the user confirms their route.
+- Active scope: `docs/PROJECT-PLAN.md` and the current team task documents. API truth for implemented behavior: `docs/API.md` with `contracts/api.ts`; the media contract in `docs/team/` is a proposal until explicitly frozen and implemented. Implementation lives in `backend/`.
+- Only the integration owner merges shared contract/dependency changes and reconciles branch DZ ledgers. Do not concatenate divergent journals or overwrite generated views; use the installed state tool after preserving and reconciling valid branch records. Each contributor supplies their own handoff and evidence.
 - The user owns the frontend. Do not expand portals or payment scope without a new decision.
 - Run from repository root with Python 3.12: `python -m pytest -q`, `python -m scripts.demo`.
 - Public case adaptations must retain provenance and licensing. Synthetic cases must stay explicitly synthetic.

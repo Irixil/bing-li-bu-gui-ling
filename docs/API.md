@@ -1,5 +1,7 @@
 # 前后端接口合同 v0.3
 
+本页描述现有文本接口。语音／照片上传与识别尚未实现，开发要求见 [团队入口](team/README.md)，拟议接口见 [媒体合同草案](team/MEDIA-CONTRACT.md)；不能把草案端点作为已可调用能力。实现 PR 必须同步本页、`contracts/api.ts` 和前端接线说明。
+
 服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）。**只有创建记录要求 `Idempotency-Key`**；其余写入用 `expected_version` 防止覆盖。服务重启后重新获取 token。
 
 本 MVP 用单人本地会话，不发送 `X-Auth-Token`。已有 `/api/auth/*` 属于保留的账号兼容接口，不属于此次老人端必接合同，也不代表多家庭鉴权已安全完成。
@@ -28,7 +30,7 @@
 
 AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、`raw_text_preserved:true`、`ai_failed:true`、`failure_reason`、`local_safety` 和扁平的 `danger_detected/escalation_level/review_role/danger_reminder`。第一次整理失败时 event 保持 `inbox`，没有伪造 draft。若旧草稿已存在，失败保留原版本和旧草稿；页面必须注明本次重新整理失败，不能把旧结果当成本次成功。危险原文仍可用详情和历史接口查询。
 
-C 部分本地修订：成功响应及 `event.result_meta` 增加 `model_id`、`prompt_sha256`、`input_sha256`，失败响应与审计也包含这些标识（配置不可读时模型标识为空）。旧记录可能没有新增字段；它们用于开发核查，前端主流程无需展示。提示词版本以 `prompts/VERSION` 为准，哈希覆盖实际拼接的提示词与 Schema，输入哈希覆盖实际发送的原文证据对象。历史草稿和核对备注不会作为新一轮模型证据发送。
+C 部分修订：成功响应及 `event.result_meta` 增加 `model_id`、`prompt_sha256`、`input_sha256`，失败响应与审计也包含这些标识（配置不可读时模型标识为空）。旧记录可能没有新增字段；它们用于开发核查，前端主流程无需展示。提示词版本以 `prompts/VERSION` 为准，哈希覆盖实际拼接的提示词与 Schema，输入哈希覆盖实际发送的原文证据对象。历史草稿和核对备注不会作为新一轮模型证据发送。
 
 通用模型适配后的 422 可额外包含 `failure_code` 和 `provider_http_status`。模型 401/403 展示鉴权或访问权限失败，429 展示限流或额度不足；超时、截断和协议错误有固定原因。它们是下游模型状态，前端仍按 HTTP 422 的原文保真合同处理，不当成当前本地用户登录失效。未知异常不回显原始错误体。
 
