@@ -13,4 +13,6 @@ os.environ.setdefault("API_PORT", "18768")
 os.environ.setdefault("DB_PATH", str(ROOT / "runtime" / "records.sqlite3"))
 os.environ.setdefault("MEDIA_ROOT", str(ROOT / "runtime" / "media"))
 from backend.server import serve
-serve()
+
+if __name__ == "__main__":
+    serve()
