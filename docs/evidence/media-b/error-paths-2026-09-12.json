@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-12",
+  "command": ".venv/bin/python -m pytest -q tests/test_recognition.py",
+  "result": "9 passed",
+  "covered_errors": [
+    "attempt_id_required",
+    "invalid_media",
+    "unsupported_format",
+    "unsupported_media_kind",
+    "mock_provider_not_allowed",
+    "provider_auth_failed",
+    "provider_unavailable",
+    "no_text_detected",
+    "invalid_provider_response",
+    "provider_timeout"
+  ],
+  "assertions": [
+    "错误具有稳定 code、中文安全 message 和 retryable 字段",
+    "错误不包含服务原始正文或本机文件绝对路径",
+    "原件字节在成功调用后保持不变",
+    "未配置真实服务不会静默回退到 Mock"
+  ],
+  "scope": "这些是独立模块的确定性替身和输入校验测试，不等同于第三方服务的真实限流、鉴权或网络验收。"
+}

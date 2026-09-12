@@ -1,0 +1,18 @@
+{
+  "id": 1579,
+  "transcription": "报 告 警 告 称 没 有 人 能 保 证 目 前 在 伊 拉 克 采 取 的 任 何 行 动 能 够 阻 止 宗 派 战 争 不 断 增 长 的 暴 力 或 走 向 混 乱",
+  "raw_transcription": "报告警告称，没有人能保证目前在伊拉克采取的任何行动能够阻止宗派战争、不断增长的暴力或走向混乱。",
+  "gender": 0,
+  "lang_id": 13,
+  "language": "Mandarin Chinese",
+  "lang_group_id": 6,
+  "num_samples": 294080,
+  "path": "/root/.cache/huggingface/datasets/downloads/extracted/2c742be3dd964dc822bb08243fee6c5b953003d17f5918d8e0b29a099c991017/10116334326946811387.wav",
+  "dataset": "google/fleurs",
+  "config": "cmn_hans_cn",
+  "split": "validation",
+  "source_page": "https://huggingface.co/datasets/google/fleurs",
+  "license": "CC-BY-4.0",
+  "downloaded_at": "2026-09-12",
+  "usage": "真实 ASR 服务验证样例；内容非医疗场景，不含个人健康数据"
+}

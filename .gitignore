@@ -15,3 +15,4 @@ frontend/dist/
 coverage/
 .coverage
 *.log
+tools/media-recognition/vision_ocr
