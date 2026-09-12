@@ -5,14 +5,44 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, unquote
 from pathlib import Path
 try:
- from .adapter import AdapterError, Config, organize_event
+ from .adapter import AdapterError, Config, organize_event, PROMPT_VERSION, SCHEMA_VERSION, PROMPT_SHA256, payload_sha256
  from .store import SQLiteStore, StoreError, Unauthorized, Forbidden
 except ImportError:
- from adapter import AdapterError, Config, organize_event
+ from adapter import AdapterError, Config, organize_event, PROMPT_VERSION, SCHEMA_VERSION, PROMPT_SHA256, payload_sha256
  from store import SQLiteStore, StoreError, Unauthorized, Forbidden
 ROOT=Path(__file__).resolve().parents[1]; STATIC=(ROOT/'frontend'/'dist').resolve(); SESSION_TOKEN=secrets.token_urlsafe(24)
 DB_PATH=os.getenv('DB_PATH',os.getenv('API_DB_PATH',str(ROOT/'runtime'/'records.sqlite3'))); STORE=SQLiteStore(DB_PATH)
 ALLOWED_ORIGIN=os.getenv('ALLOWED_ORIGIN','')
+def model_evidence(event):
+ # Only original evidence crosses the model boundary. Prior drafts, audit
+ # notes, review state and model output must never become new source facts.
+ return {key:event.get(key) for key in ('record_id','raw_text','source_kind','recorded_at','occurred_time')}
+
+def configured_model_metadata():
+ try:
+  config=Config.from_env()
+  return {'provider':config.provider,'model_id':'mock-v1' if config.provider=='mock' else config.model or None}
+ except (ValueError,TypeError):
+  return {'provider':None,'model_id':None}
+
+def model_failure_details(error):
+ # Use known codes, never a remote message/body, URL or arbitrary error field.
+ messages={'model_timeout':'模型超时','model_network_error':'网络连接失败',
+           'model_configuration_invalid':'模型配置无效','model_redirect_rejected':'模型地址返回重定向，已拒绝转发',
+           'model_response_too_large':'模型响应超过大小限制','model_output_truncated':'模型输出被截断',
+           'model_response_invalid':'模型返回内容格式无效','model_http_error':'模型服务请求失败',
+           'model_account_binding_required':'魔搭账号需先绑定阿里云账号'}
+ code=error.code if isinstance(error,AdapterError) and type(error.code) is str and error.code in messages else None
+ status=error.status if isinstance(error,AdapterError) and code in {'model_http_error','model_account_binding_required'} and type(error.status)==int and 100<=error.status<=599 else None
+ if code:
+  reason=messages[code]
+  if code=='model_http_error' and status in (401,403): reason='模型服务鉴权或访问权限失败'
+  elif code=='model_http_error' and status==429: reason='模型服务限流或额度不足'
+  return {'failure_reason':reason,'failure_code':code,**({'provider_http_status':status} if status is not None else {})}
+ cause=error.__cause__ or error
+ reason=('模型超时' if isinstance(cause,TimeoutError) else '模型返回非法 JSON' if isinstance(cause,json.JSONDecodeError) else '网络连接失败' if isinstance(cause,URLError) else '模型调用失败或返回内容未通过校验')
+ return {'failure_reason':reason}
+
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*a): pass
  def end_headers(self):
@@ -44,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   p=unquote(urlparse(self.path).path)
   if p=='/health':
-   c=Config.from_env();return self.send_json(200,{'ok':True,'service':'medical-handoff-p0','provider':c.provider,'storage':'sqlite','mode':'local_single_household','schema_version':'event-v0.3','session_token':SESSION_TOKEN})
+   c=Config.from_env();return self.send_json(200,{'ok':True,'service':'medical-handoff-p0','provider':c.provider,'storage':'sqlite','mode':'local_single_household','schema_version':SCHEMA_VERSION,'session_token':SESSION_TOKEN})
   if p=='/api/events':
    ctx=self._auth_ctx()
    if self.headers.get('X-Auth-Token') and ctx is None:
@@ -124,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
     if not e:raise StoreError('event_not_found')
     if z[3]=='organize':
      if ctx: STORE.authorize(self.headers.get('X-Auth-Token'),'organize',ctx['household_id'])
-     expected=b.get('expected_version',e['version']); related=[STORE.get(x) for x in e.get('related_record_ids',[])]; payload={**e,'history':related}
+     expected=b.get('expected_version',e['version']); related=[STORE.get(x) for x in e.get('related_record_ids',[])]; payload={**model_evidence(e),'history':[model_evidence(item) for item in related]}
      safety=e['local_safety']
      try:
       r=organize_event(payload)
@@ -132,10 +162,11 @@ class Handler(BaseHTTPRequestHandler):
       # Do not expose provider bodies/credentials or misclassify storage/version
       # failures: only the provider+validation call is caught here.
       cause=ex.__cause__ or ex
-      reason=('模型超时' if isinstance(cause,TimeoutError) else '模型返回非法 JSON' if isinstance(cause,json.JSONDecodeError) else '网络连接失败' if isinstance(cause,URLError) else '模型调用失败或返回内容未通过校验')
-      failure={'error':'ai_organize_failed','failure_type':type(ex).__name__,'failure_cause_type':type(cause).__name__,'failure_reason':reason,'trace_id':'tr_'+secrets.token_hex(16),'raw_text_sha256':hashlib.sha256(e['raw_text'].encode()).hexdigest(),'prompt_version':'prompt-v0.4','schema_version':'event-v0.3','raw_text_preserved':True,'local_safety':safety}
+      failure={'error':'ai_organize_failed','failure_type':type(ex).__name__,'failure_cause_type':type(cause).__name__,'trace_id':'tr_'+secrets.token_hex(16),'raw_text_sha256':hashlib.sha256(e['raw_text'].encode()).hexdigest(),'input_sha256':payload_sha256(payload),'prompt_version':PROMPT_VERSION,'prompt_sha256':PROMPT_SHA256,'schema_version':SCHEMA_VERSION,'raw_text_preserved':True,'local_safety':safety,**configured_model_metadata(),**model_failure_details(ex)}
       STORE.fail(rid,'organize_failed',actor,failure)
       return self.send_json(422,{'ok':False,'ai_failed':True,'record_id':rid,'event':STORE.get(rid),'local_safety':safety,**failure,**safety})
+     # The outward notice includes historical positives retained on rule upgrade.
+     r.update(local_safety=safety,**safety)
      out=STORE.organize(rid,expected,r,actor)
      return self.send_json(200,{'event':out,'raw_text_preserved':True,**r})
     if z[3]=='review':
