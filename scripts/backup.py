@@ -20,7 +20,7 @@ from pathlib import PurePosixPath
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_MANIFEST_VERSION = 1
+_MANIFEST_VERSION = 2
 
 
 def backup(source, destination):
@@ -114,6 +114,34 @@ def _copy_verified_original(media_root, relative_path, expected_sha256, destinat
     return relative, size
 
 
+def _hash_regular_file(path):
+    """Hash a regular file without following a symlink."""
+
+    path = Path(path)
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            raise OSError
+        digest = hashlib.sha256()
+        with os.fdopen(descriptor, "rb") as stream:
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+        return info.st_size, digest.hexdigest()
+    except OSError:
+        try:
+            os.close(descriptor)
+        except (OSError, UnboundLocalError):
+            pass
+        raise ValueError("媒体元数据缺失") from None
+
+
 def _referenced_media(database):
     with sqlite3.connect(Path(database)) as connection:
         table = connection.execute(
@@ -178,12 +206,25 @@ def backup_media_bundle(source_database, source_media_root, destination):
                 if str(exc) == "媒体原件缺失":
                     raise
                 raise
+            metadata_relative = f"{item['media_id']}/metadata.json"
+            metadata_size, metadata_sha256 = _hash_regular_file(
+                source_media_root / metadata_relative
+            )
+            _copy_verified_original(
+                source_media_root,
+                metadata_relative,
+                metadata_sha256,
+                media_destination,
+            )
             manifest_media.append(
                 {
                     "media_id": item["media_id"],
                     "relative_path": relative.as_posix(),
                     "sha256": item["sha256"],
                     "size_bytes": size,
+                    "metadata_relative_path": metadata_relative,
+                    "metadata_sha256": metadata_sha256,
+                    "metadata_size_bytes": metadata_size,
                 }
             )
         manifest = {
@@ -246,6 +287,9 @@ def _verify_bundle(bundle, manifest):
             "relative_path",
             "sha256",
             "size_bytes",
+            "metadata_relative_path",
+            "metadata_sha256",
+            "metadata_size_bytes",
         }:
             raise ValueError("备份清单无效")
         relative = _safe_relative_path(item["relative_path"])
@@ -274,6 +318,34 @@ def _verify_bundle(bundle, manifest):
             or digest.hexdigest() != item["sha256"]
         ):
             raise ValueError("媒体原件损坏")
+        metadata_relative = _safe_relative_path(item["metadata_relative_path"])
+        if metadata_relative.as_posix() in seen:
+            raise ValueError("备份清单无效")
+        seen.add(metadata_relative.as_posix())
+        if metadata_relative.as_posix() != f"{item['media_id']}/metadata.json":
+            raise ValueError("备份清单无效")
+        try:
+            descriptor, _, metadata_size = _open_verified_original(
+                Path(bundle) / "media",
+                item["metadata_relative_path"],
+                item["metadata_sha256"],
+            )
+            with os.fdopen(descriptor, "rb") as stream:
+                metadata_digest = hashlib.sha256()
+                while True:
+                    chunk = stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    metadata_digest.update(chunk)
+        except ValueError:
+            raise ValueError("媒体元数据缺失或损坏") from None
+        if (
+            type(item["metadata_size_bytes"]) is not int
+            or item["metadata_size_bytes"] < 1
+            or metadata_size != item["metadata_size_bytes"]
+            or metadata_digest.hexdigest() != item["metadata_sha256"]
+        ):
+            raise ValueError("媒体元数据缺失或损坏")
 
 
 def restore_media_bundle(bundle, destination_database, destination_media_root):
@@ -308,6 +380,12 @@ def restore_media_bundle(bundle, destination_database, destination_media_root):
                 bundle / "media",
                 item["relative_path"],
                 item["sha256"],
+                temporary_media,
+            )
+            _copy_verified_original(
+                bundle / "media",
+                item["metadata_relative_path"],
+                item["metadata_sha256"],
                 temporary_media,
             )
         os.rename(temporary_media, destination_media_root)

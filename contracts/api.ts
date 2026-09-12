@@ -505,13 +505,22 @@ export type StartMediaRecognitionRequest = {
   actor_name?: string;
 };
 
-/** 202 means accepted/processing, not that recognition succeeded. */
-export type StartMediaRecognitionResponse = {
-  ok: true;
-  accepted: true;
-  attempt_id: string;
-  media: Media & { recognition_status: "processing" };
-};
+/** A new task is 202; a successful replay is 200 and reuses the attempt. */
+export type StartMediaRecognitionResponse =
+  | {
+      ok: true;
+      accepted: true;
+      attempt_id: string;
+      media: Media & { recognition_status: "processing" };
+    }
+  | {
+      ok: true;
+      accepted: true;
+      action: "existing" | "resume_link";
+      attempt_id: string;
+      media: Media & { recognition_status: "succeeded" };
+      event?: Event;
+    };
 
 export type LinkMediaResponse = {
   ok: true;
@@ -537,6 +546,7 @@ export type MediaOriginalRequestHeaders = {
 };
 
 export const MEDIA_HTTP_ERROR_CODES = [
+  "media_limits_not_configured",
   "request_too_large",
   "unsupported_format",
   "content_type_kind_mismatch",

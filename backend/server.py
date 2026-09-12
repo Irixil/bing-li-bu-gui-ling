@@ -296,7 +296,9 @@ class Handler(BaseHTTPRequestHandler):
      z[2],b.get('expected_version'),key,
      actor=request_actor(b),household_id=ctx['household_id'] if ctx else None,
     )
-    return self.send_json(202,{'ok':True,**_public_value(result)})
+    action = result.get('action')
+    status = 200 if action in {'existing', 'resume_link'} and result.get('media', {}).get('recognition_status') == 'succeeded' else 202
+    return self.send_json(status,{'ok':True,**_public_value(result)})
    if len(z)==4 and z[:2]==['api','media'] and z[3]=='link':
     self.media_write_enabled()
     if not _safe_media_id(z[2],'media'):return self.send_json(404,{'ok':False,'error':'not_found'})

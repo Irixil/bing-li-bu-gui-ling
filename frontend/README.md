@@ -2,7 +2,7 @@
 
 这里由项目负责人开发。可以使用 React/Vite，也可以用其他熟悉的前端方案；后端不要求特定框架。
 
-语音／照片后端已接入本地文件存储、SQLite 状态和 B 的识别模块。当前 HTTP 接线形状已经同步到 [正式 API 合同](../docs/API.md) 和 `contracts/api.ts`；真实 ASR/OCR、浏览器或手机验收仍未完成。默认无额外配置时是明确标注的离线 Mock 演示模式。
+语音／照片后端已接入本地文件存储、SQLite 状态和 B 的识别模块。当前 HTTP 接线形状已经同步到 [正式 API 合同](../docs/API.md) 和 `contracts/api.ts`；真实 ASR/OCR、浏览器或手机验收仍未完成。复制 `.env.example` 并显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 后才是离线 Mock 演示模式；未配置 provider 时会返回 `provider_not_configured`，不会静默切换 Mock。
 
 录音已确认：长时间没有声音先提醒，提醒后仍无回应再自动暂停，保留已录内容并可接着说。静音时长、提醒后等待时长和检测方法待真机验证小声、停顿、电视噪声；60 秒强制结束要求已撤回。自动暂停不等于上传成功或记录已核对。前端与 A 对齐暂停续录的文件交接，不能丢弃前段内容。
 

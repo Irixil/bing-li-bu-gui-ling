@@ -1,6 +1,6 @@
 import hashlib
 
-from backend.media_backend import LocalMediaBackend
+from backend.media_backend import LocalMediaBackend, create_default_media_backend
 from backend.store import SQLiteStore
 
 
@@ -13,6 +13,15 @@ def backend(tmp_path):
         tmp_path / "media",
         recognition_provider="mock",
     )
+
+
+def test_default_backend_requires_explicit_recognition_provider(tmp_path, monkeypatch):
+    monkeypatch.delenv("MEDIA_RECOGNITION_PROVIDER", raising=False)
+    media_backend = create_default_media_backend(
+        SQLiteStore(tmp_path / "records.sqlite3"), root=tmp_path / "media"
+    )
+
+    assert media_backend.recognition_provider is None
 
 
 def upload_image(media_backend):

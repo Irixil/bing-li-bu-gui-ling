@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 
 from scripts.backup import backup, backup_media_bundle, restore_media_bundle
+from backend.media_backend import LocalMediaBackend
+from backend.media_store import MediaStore
+from backend.store import SQLiteStore
 
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"backup-payload"
@@ -31,12 +34,23 @@ def media_database(path: Path, relative_path="media_1/original", payload=PNG):
         )
 
 
+def media_metadata(path: Path):
+    metadata = path / "media_1" / "metadata.json"
+    metadata.parent.mkdir(parents=True, exist_ok=True)
+    metadata.write_text(
+        '{"media_id":"media_1","kind":"image","content_type":"image/png",'
+        '"size_bytes":22,"sha256":"metadata-test"}',
+        encoding="utf-8",
+    )
+
+
 def test_media_bundle_restores_database_and_verified_originals(tmp_path):
     source_db = tmp_path / "records.sqlite3"
     source_media = tmp_path / "media"
     original = source_media / "media_1" / "original"
     original.parent.mkdir(parents=True)
     original.write_bytes(PNG)
+    media_metadata(source_media)
     media_database(source_db)
 
     bundle = backup_media_bundle(source_db, source_media, tmp_path / "backup")
@@ -46,6 +60,7 @@ def test_media_bundle_restores_database_and_verified_originals(tmp_path):
 
     assert result == {"database": restored_db, "media_root": restored_media}
     assert (restored_media / "media_1" / "original").read_bytes() == PNG
+    assert (restored_media / "media_1" / "metadata.json").is_file()
     with sqlite3.connect(restored_db) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("SELECT value FROM sentinel").fetchone()[0] == (
@@ -53,14 +68,44 @@ def test_media_bundle_restores_database_and_verified_originals(tmp_path):
         )
     manifest = json.loads((bundle / "manifest.json").read_text())
     assert manifest["database"] == "records.sqlite3"
-    assert manifest["media"] == [
+    item = manifest["media"][0]
+    assert item["media_id"] == "media_1"
+    assert item["relative_path"] == "media_1/original"
+    assert item["sha256"] == hashlib.sha256(PNG).hexdigest()
+    assert item["size_bytes"] == len(PNG)
+    assert item["metadata_relative_path"] == "media_1/metadata.json"
+    metadata = (source_media / "media_1" / "metadata.json").read_bytes()
+    assert item["metadata_sha256"] == hashlib.sha256(metadata).hexdigest()
+    assert item["metadata_size_bytes"] == len(metadata)
+
+
+def test_real_media_store_can_read_after_bundle_restore(tmp_path):
+    source_db = tmp_path / "real-records.sqlite3"
+    source_root = tmp_path / "real-media"
+    backend = LocalMediaBackend(SQLiteStore(source_db), source_root, recognition_provider="mock")
+    payload = b"\x89PNG\r\n\x1a\nreal-media-backup"
+    upload, _ = backend.create_upload(
         {
-            "media_id": "media_1",
-            "relative_path": "media_1/original",
-            "sha256": hashlib.sha256(PNG).hexdigest(),
-            "size_bytes": len(PNG),
-        }
-    ]
+            "kind": "image",
+            "content_type": "image/png",
+            "total_parts": 1,
+            "original_filename": "check.png",
+        },
+        "backup-real-create",
+    )
+    backend.write_part(upload["upload_id"], 0, payload, "backup-real-part")
+    backend.complete_upload(upload["upload_id"], "backup-real-complete")
+
+    bundle = backup_media_bundle(source_db, source_root, tmp_path / "real-backup")
+    restored_db = tmp_path / "real-restored" / "records.sqlite3"
+    restored_root = tmp_path / "real-restored" / "media"
+    restore_media_bundle(bundle, restored_db, restored_root)
+
+    store = MediaStore(restored_root)
+    record = store.get_media(upload["media_id"])
+    assert record.media_id == upload["media_id"]
+    with store.open_original(upload["media_id"]) as stream:
+        assert stream.read() == payload
 
 
 @pytest.mark.parametrize("damage", ["missing", "changed"])
@@ -72,6 +117,7 @@ def test_restore_rejects_missing_or_corrupt_original_without_partial_output(
     original = source_media / "media_1" / "original"
     original.parent.mkdir(parents=True)
     original.write_bytes(PNG)
+    media_metadata(source_media)
     media_database(source_db)
     bundle = backup_media_bundle(source_db, source_media, tmp_path / "backup")
     bundled_original = bundle / "media" / "media_1" / "original"
@@ -125,6 +171,7 @@ def test_bundle_and_restore_never_overwrite_existing_destinations(tmp_path):
     original = source_media / "media_1" / "original"
     original.parent.mkdir(parents=True)
     original.write_bytes(PNG)
+    media_metadata(source_media)
     media_database(source_db)
     bundle = backup_media_bundle(source_db, source_media, tmp_path / "backup")
 

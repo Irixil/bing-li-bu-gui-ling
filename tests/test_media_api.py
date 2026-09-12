@@ -468,6 +468,35 @@ def test_recognition_is_accepted_once_and_status_is_read_from_media_detail(api):
     assert detail.body["media"]["recognition_status"] == "processing"
 
 
+def test_successful_recognition_replay_returns_existing_result(real_media_api):
+    _, request = real_media_api
+    media = save_real_media(request, prefix="recognize-success")
+    headers = {
+        "Content-Type": "application/json",
+        "Idempotency-Key": "recognize-success-first",
+    }
+
+    first = request(
+        "POST",
+        f"/api/media/{media['media_id']}/recognize",
+        body={"expected_version": media["version"]},
+        headers=headers,
+    )
+    current = request("GET", f"/api/media/{media['media_id']}").body["media"]
+    replay = request(
+        "POST",
+        f"/api/media/{media['media_id']}/recognize",
+        body={"expected_version": media["version"]},
+        headers=headers,
+    )
+
+    assert first.status == 202
+    assert current["recognition_status"] == "succeeded"
+    assert replay.status == 200
+    assert replay.body["attempt_id"] == first.body["attempt_id"]
+    assert replay.body["media"]["recognition_status"] == "succeeded"
+
+
 def test_media_writes_keep_existing_session_and_origin_protection(api):
     _, request, _ = api
     payload, content_type = multipart(

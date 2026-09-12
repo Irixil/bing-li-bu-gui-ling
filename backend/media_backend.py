@@ -237,7 +237,9 @@ def create_default_media_backend(
         max_upload_bytes=positive("MEDIA_UPLOAD_MAX_BYTES"),
         max_part_bytes=positive("MEDIA_UPLOAD_PART_MAX_BYTES"),
         max_parts=positive("MEDIA_UPLOAD_MAX_PARTS"),
-        recognition_provider=os.getenv("MEDIA_RECOGNITION_PROVIDER", "mock") or None,
+        # Mock is an explicit offline choice. A missing provider must remain
+        # distinguishable from Mock and surface provider_not_configured.
+        recognition_provider=os.getenv("MEDIA_RECOGNITION_PROVIDER") or None,
         background=True,
     )
 

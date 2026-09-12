@@ -875,6 +875,10 @@ class SQLiteStore:
             'accepted': True,
             'media': media,
             'attempt': media['latest_attempt'],
+            'attempt_id': (
+                media['latest_attempt']['attempt_id']
+                if media['latest_attempt'] else None
+            ),
         }
         if action is not None:
             result['action'] = action
