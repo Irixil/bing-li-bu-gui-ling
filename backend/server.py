@@ -17,7 +17,10 @@ except ImportError:
  from media_backend import create_default_media_backend
  from media_store import MediaStoreError
  from store import SQLiteStore, StoreError, NotFound, Conflict, Unauthorized, Forbidden, expected_version
-ROOT=Path(__file__).resolve().parents[1]; STATIC=(ROOT/'frontend'/'dist').resolve(); SESSION_TOKEN=secrets.token_urlsafe(24)
+ROOT=Path(__file__).resolve().parents[1]
+# The elder UI is plain HTML/JS; serve its source when no optional build exists.
+STATIC=(ROOT/'frontend'/'dist' if (ROOT/'frontend'/'dist'/'index.html').is_file() else ROOT/'frontend').resolve()
+SESSION_TOKEN=secrets.token_urlsafe(24)
 DB_PATH=os.getenv('DB_PATH',os.getenv('API_DB_PATH',str(ROOT/'runtime'/'records.sqlite3'))); STORE=SQLiteStore(DB_PATH)
 ALLOWED_ORIGIN=os.getenv('ALLOWED_ORIGIN','')
 MAX_MEDIA_REQUEST_BYTES=int(os.getenv('MEDIA_REQUEST_MAX_BYTES','0') or '0')

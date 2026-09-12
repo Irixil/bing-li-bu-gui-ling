@@ -1371,9 +1371,6 @@ class SQLiteStore:
             or not isinstance(result.get('safety_guard_applied'), bool)
         ):
             raise StoreError('validated_output_required')
-        draft_json = json.dumps(result['output'], ensure_ascii=False, allow_nan=False)
-        meta = {k: result.get(k) for k in ('trace_id', 'provider', 'model_id', 'prompt_version', 'prompt_sha256', 'input_sha256', 'schema_version', 'latency_ms', 'safety_guard_applied')}
-        meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)
         with self.transaction() as c:
             event = self._versioned(c, rid, expected)
             if event['state'] not in {'inbox', 'needs_review', 'draft'}:
@@ -1387,7 +1384,8 @@ class SQLiteStore:
                 validate_output(output, event['raw_text'], {**event, 'history': related})
                 draft_json = json.dumps(output, ensure_ascii=False, allow_nan=False)
                 meta = {k: result.get(k) for k in (
-                    'trace_id', 'provider', 'prompt_version', 'schema_version',
+                    'trace_id', 'provider', 'model_id', 'prompt_version',
+                    'prompt_sha256', 'input_sha256', 'schema_version',
                     'latency_ms', 'safety_guard_applied',
                 )}
                 meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)

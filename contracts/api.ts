@@ -60,13 +60,65 @@ export type AiDraftClaim = {
   source_kind: SourceKind;
   record_id: string;
   quote: string | null;
-export type LocalSafety = {
-  danger_detected: boolean;
-  escalation_level: 'none' | 'emergency';
-  review_role: 'none' | 'emergency_services';
-  danger_reminder: string | null;
-  matched_rules: string[];
-  safety_rule_version: string;
+};
+
+export type AiDraftConflict = {
+  present: boolean;
+  record_refs: string[];
+};
+
+/** AI output validated against config/event-v0.3.schema.json. */
+export type AiDraft = {
+  schema_version: SchemaVersion;
+  event_kind: EventKind;
+  summary: string;
+  time: AiDraftTime;
+  claims: [AiDraftClaim, ...AiDraftClaim[]];
+  review_required: true;
+  review_role: ReviewRole;
+  escalation_level: EscalationLevel;
+  conflict: AiDraftConflict;
+  provenance_preserved: true;
+  plan_change_allowed: false;
+  follow_up_questions?: string[];
+  forbidden_actions?: ForbiddenAction[];
+};
+
+/** Offline safety scan stored outside the AI draft. A non-match is not medical clearance. */
+export type SafetyHistory = {
+  previous_rule_version?: string;
+  previous_danger_detected?: boolean;
+  previous_matched_rules?: string[];
+  historical_notice_preserved?: boolean;
+  clinical_review_flags?: string[];
+  clinical_review_required?: boolean;
+  clinical_review_role?: 'clinician_or_pharmacist' | null;
+  clinical_review_notice?: string | null;
+  clinical_review_version?: string;
+  clinical_review_status?: 'candidate_unverified' | 'not_flagged';
+  previous_clinical_review_version?: string | null;
+  previous_clinical_review_flags?: string[];
+  historical_clinical_review_preserved?: boolean;
+};
+
+export type LocalSafety = SafetyHistory & (
+  | {
+      danger_detected: false;
+      escalation_level: "none";
+      review_role: "none";
+      danger_reminder: null;
+      matched_rules: [];
+      safety_rule_version: string;
+    }
+  | {
+      danger_detected: true;
+      escalation_level: "emergency";
+      review_role: "emergency_services";
+      danger_reminder: string;
+      matched_rules: [string, ...string[]];
+      safety_rule_version: string;
+    });
+
 export type OrganizeResultMeta = {
   trace_id: string;
   provider: string;
@@ -79,7 +131,6 @@ export type OrganizeResultMeta = {
   input_sha256?: string;
 };
 
-/** The complete event object returned by the core HTTP routes. */
 export type ModelTrace = {
   trace_id: string;
   provider: string | null;
@@ -92,6 +143,7 @@ export type ModelTrace = {
   safety_guard_applied?: boolean;
 };
 
+/** The complete event object returned by the core HTTP routes. */
 export type Event = {
   record_id: string;
   raw_text: string;
@@ -104,11 +156,6 @@ export type Event = {
   draft: AiDraft | null;
   result_meta: OrganizeResultMeta | null;
   review_notes: string | null;
-  draft: Record<string, unknown> | null;
-  local_safety: LocalSafety;
-  draft: Record<string, unknown> | null;
-  result_meta?: ModelTrace | null;
-  local_safety: LocalSafety;
   related_record_ids: string[];
   supersedes_id: string | null;
   created_at: string;
@@ -195,6 +242,9 @@ export type OrganizeSuccess = LocalSafety & {
   latency_ms: number;
   safety_guard_applied: boolean;
   raw_text_preserved: true;
+  model_id?: string | null;
+  prompt_sha256?: string;
+  input_sha256?: string;
   local_safety: LocalSafety;
 };
 
@@ -213,6 +263,10 @@ export type OrganizeFailure = LocalSafety & {
   raw_text_sha256: string;
   prompt_version: string;
   schema_version: SchemaVersion;
+  provider?: string | null;
+  model_id?: string | null;
+  prompt_sha256?: string;
+  input_sha256?: string;
   failure_code?: string;
   provider_http_status?: number;
   local_safety: LocalSafety;
@@ -295,7 +349,8 @@ export type UnresolvedReason =
   | "draft_missing"
   | "professional_review_required"
   | "escalation_not_cleared"
-  | "conflict_not_resolved";
+  | "conflict_not_resolved"
+  | "clinical_measurement_review_required";
 
 export type HandoffItem = Event & {
   unresolved: boolean;
