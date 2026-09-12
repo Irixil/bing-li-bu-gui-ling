@@ -28,9 +28,9 @@ def uid(prefix=''):
 
 
 try:
-    from .safety import scan_danger
+    from .safety import scan_danger, reconcile_safety
 except ImportError:
-    from safety import scan_danger
+    from safety import scan_danger, reconcile_safety
 
 class StoreError(RuntimeError):
     status = 400
@@ -275,7 +275,7 @@ class SQLiteStore:
             raw = event.pop(db_field, None)
             event[field] = json.loads(raw) if raw else ([] if field == 'related_record_ids' else None)
         saved_safety = event.pop('safety_json', None)
-        event['local_safety'] = json.loads(saved_safety) if saved_safety else scan_danger(event['raw_text'])
+        event['local_safety'] = reconcile_safety(event['raw_text'], json.loads(saved_safety) if saved_safety else None)
         event['confirmation_scope'] = 'record_accuracy' if event['state'] == 'recorded' else None
         return event
 
@@ -581,7 +581,7 @@ class SQLiteStore:
         if not isinstance(result, dict) or not isinstance(result.get('output'), dict) or not result['output']:
             raise StoreError('validated_output_required')
         draft_json = json.dumps(result['output'], ensure_ascii=False, allow_nan=False)
-        meta = {k: result.get(k) for k in ('trace_id', 'provider', 'prompt_version', 'schema_version', 'latency_ms', 'safety_guard_applied')}
+        meta = {k: result.get(k) for k in ('trace_id', 'provider', 'model_id', 'prompt_version', 'prompt_sha256', 'input_sha256', 'schema_version', 'latency_ms', 'safety_guard_applied')}
         meta_json = json.dumps(meta, ensure_ascii=False, allow_nan=False)
         with self.transaction() as c:
             event = self._versioned(c, rid, expected)
@@ -668,6 +668,8 @@ class SQLiteStore:
         reasons = []
         if event.get('local_safety', {}).get('danger_detected'):
             reasons.append('local_danger_detected')
+        if event.get('local_safety', {}).get('clinical_review_required'):
+            reasons.append('clinical_measurement_review_required')
         if event['state'] != 'recorded':
             reasons.append('record_not_confirmed')
         draft = event.get('draft') or {}

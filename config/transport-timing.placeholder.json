@@ -1,0 +1,29 @@
+{
+  "version": "transport-timing-placeholder-v1",
+  "runtime_enabled": false,
+  "collection": "not_instrumented",
+  "unit": "milliseconds",
+  "timings_ms": {
+    "dns": null,
+    "tcp": null,
+    "tls": null,
+    "ttfb": null,
+    "read": null
+  },
+  "semantics": {
+    "dns": "未来记录名称解析耗时；当前未采集。",
+    "tcp": "未来记录TCP连接建立耗时；当前未采集。",
+    "tls": "未来记录TLS握手耗时；当前未采集。",
+    "ttfb": "未来记录发送请求后等待响应首字节的耗时；当前未采集，计时边界待实现时固定。",
+    "read": "未来记录首字节到响应体读取完成的耗时；当前未采集。",
+    "null": "未采集，不代表0毫秒、网络正常或该阶段不存在；连接复用未来需单独定义。"
+  },
+  "integration": "仅静态占位，不由运行时导入，不增加网络调用、等待或重试，不改变API响应和既有总耗时审计。",
+  "required_future_tests": [
+    "使用单调时钟，明确DNS/TCP/TLS/首字节/读取的起止边界和是否存在重叠。",
+    "连接复用、DNS缓存及无需TLS时不伪造已测的零耗时。",
+    "连接失败、读取失败、超时和截断时保留已采集阶段并将未采集阶段设null。",
+    "计时实现不改变原文先保存、危险扫描、模型失败、历史和交接链路。",
+    "报告不泄露令牌、Authorization头、完整带密钥URL或原始供应商错误体。"
+  ]
+}

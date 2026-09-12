@@ -30,7 +30,13 @@ py -3.12 -m venv .venv
 
 访问 <http://127.0.0.1:18768/health> 应看到 `ok: true`。首页 `/` 在前端构建完成前返回 404，这是当前尚未交付页面的表现。数据库自动保存在 `runtime/records.sqlite3`。
 
-默认 `MODEL_PROVIDER=mock`，不需要密钥、不调用外部 AI。Mock 是规则式模拟整理器，用于前后端接线，不应对评委宣称为真实大模型结果。可把 `.env.example` 复制为 `.env`，填写自己的模型配置后启用 `deepseek` 或 `modelscope`；密钥不进仓库。本版本真实模型调用尚未验证。
+默认 `MODEL_PROVIDER=mock`，不需要密钥、不调用外部 AI。Mock 是规则式模拟整理器，用于前后端接线，不应对评委宣称为真实大模型结果。可把 `.env.example` 复制为 `.env`，填写自己的模型配置后启用 `deepseek` 或 `modelscope`；密钥不进仓库。真实模型已有成功调用证据，范围见下文联调报告。
+
+现在也支持 `MODEL_PROVIDER=openai_compatible` 接 OpenAI Chat Completions 兼容中转站，配置 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 即可。魔搭和 DeepSeek 旧配置保持兼容。配置方法和实际联调状态见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)。
+
+2026-09-12 用户绑定阿里云后，按其新选择接通魔搭 `deepseek-ai/DeepSeek-V4-Pro-0813`，已取得通过应用校验的真实输出；首次单条耗时约 41.9 秒。此前 V4.1-Flash 的无可用提供方错误保留为历史证据。连通成功不等于完整语义或临床验收，批次结果和剩余问题以联调报告为准。
+
+2026-09-12 C 部分本地修订采用“结构整理、完整原文保留”，模型负责分类和标记，暂不生成自由摘要。提示词为 `prompt-v0.5`，离线危险规则为 `offline-danger-v2`，独立专业复核候选为 `offline-review-flags-v1`。修复与第一性原理对抗审查见 [docs/C-REVIEW.md](docs/C-REVIEW.md)；AI 起草的规则与医学待审清单见 [临床规则草案](docs/CLINICAL-RULE-DRAFT.md)，阶段计时仅作禁用占位。本地改动尚未上传 GitHub。
 
 另开一个终端，进入同一目录并启用环境，即可运行：
 
@@ -46,6 +52,12 @@ python -m pytest -q
 
 # 40 条合成用例的结构与指定安全规则回归
 python -m backend.evaluate_mock
+
+# 新 11 条 C 部分合成用例的自动断言；报告仍标记需人工复核项
+python -m backend.evaluate_mock --dataset data/synthetic/c-model-smoke.json --strict
+
+# 配好本地 .env 后验证真实模型（脚本名兼容旧命名，也支持 DeepSeek）
+python -m backend.evaluate_modelscope --dataset data/synthetic/c-model-smoke.json --out runtime/evaluations/c-real-model.json
 
 # 对常用数据库做一致性备份
 python -m scripts.backup
