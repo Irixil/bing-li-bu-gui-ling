@@ -15,16 +15,16 @@ WHISPER_MODEL=base \
 
 需要明确设置 `MEDIA_ASR_PROVIDER=dashscope` 才会上传已保存的原音频。默认不会从本地 Whisper 静默切换到云端。
 
-推荐先测 `qwen3-asr-flash`：
+当前 P0 先测 `paraformer-v2`：
 
 ```bash
 MEDIA_ASR_PROVIDER=dashscope \
-DASHSCOPE_ASR_MODEL=qwen3-asr-flash \
+DASHSCOPE_ASR_MODEL=paraformer-v2 \
 DASHSCOPE_API_KEY=\$DASHSCOPE_API_KEY \
 .venv/bin/python -c 'from backend.recognition import recognize_file; print(recognize_file("/path/to/saved.wav", kind="audio", content_type="audio/wav", attempt_id="try_1"))'
 ```
 
-`MEDIA_ASR_PROVIDER=paraformer` 会把同一适配器切到 `paraformer-v2`，用于同一批音频的成本和质量对照。真实医疗音频必须先获得授权；完整原件由 A 侧先持久化，识别失败仍可重试，不能丢失。
+`MEDIA_ASR_PROVIDER=dashscope` 配合 `DASHSCOPE_ASR_MODEL=paraformer-v2` 是当前 P0 配置；将 `DASHSCOPE_ASR_MODEL` 改为 `qwen3-asr-flash` 可做同音频对照。真实医疗音频必须先获得授权；完整原件由 A 侧先持久化，识别失败仍可重试，不能丢失。
 
 单条真实 smoke test：
 

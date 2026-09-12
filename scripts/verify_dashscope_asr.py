@@ -10,6 +10,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# Load the local ignored .env for a one-command smoke test.
+env_file = ROOT / ".env"
+if env_file.exists():
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
 from backend.recognition import RecognitionError, recognize_file
 
 DEFAULT_AUDIO = ROOT / "data" / "media_samples" / "fleurs-cmn-validation-1579.wav"
@@ -18,7 +27,7 @@ DEFAULT_AUDIO = ROOT / "data" / "media_samples" / "fleurs-cmn-validation-1579.wa
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("audio", nargs="?", type=Path, default=DEFAULT_AUDIO)
-    parser.add_argument("--model", default=os.getenv("DASHSCOPE_ASR_MODEL", "qwen3-asr-flash"))
+    parser.add_argument("--model", default=os.getenv("DASHSCOPE_ASR_MODEL", "paraformer-v2"))
     args = parser.parse_args()
     if not os.getenv("DASHSCOPE_API_KEY", "").strip():
         print(json.dumps({"ok": False, "error": "DASHSCOPE_API_KEY 未配置", "provider": "dashscope"}, ensure_ascii=False))
