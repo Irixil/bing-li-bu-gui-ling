@@ -41,3 +41,14 @@ DASHSCOPE_API_KEY='你的百炼Key' \\
 ```
 
 脚本只输出识别结果和安全错误分类，不输出 Key。若服务端点、模型权限或请求形态不匹配，会返回错误并保持原件不变；此时不能把失败当成模型质量结论。
+
+## 拍照 OCR
+
+拍照 OCR 使用同一个 `DASHSCOPE_API_KEY`，但模型是视觉模型，不是 ASR 模型：
+
+```env
+MEDIA_OCR_PROVIDER=dashscope
+DASHSCOPE_OCR_MODEL=qwen3.5-ocr
+```
+
+当前实现通过百炼 OpenAI 兼容视觉接口，把已保存图片以 Base64 Data URL 发送给 `qwen3.5-ocr`，要求逐字提取；模糊字符返回 `?`，不猜写。ASR 仍使用 `paraformer-v2`。同一个 Key 只代表同一个百炼账号，不代表 ASR 和 OCR 共用同一个模型。

@@ -82,3 +82,7 @@ A 负责：已保存原件、媒体状态和尝试持久化、调用任务占用
 - OCR 目前是清晰印刷资料；手写、复杂版式、低清照片和反光未验证。
 - 录音“无声提醒后暂停并可续录”的阈值、续录合并由前端与 A/负责人验证；本模块不实现录音采集，也不恢复已撤回的 60 秒规则。
 - 本地 Whisper 与 Vision 适用于当前 macOS 开发机；跨平台或生产部署需另行确认运行时、模型缓存、资源上限和隐私边界。
+
+### 云 OCR 接线状态
+
+已在 `backend/recognition.py` 增加显式 DashScope OCR provider：设置 `MEDIA_OCR_PROVIDER=dashscope` 后使用 `DASHSCOPE_OCR_MODEL=qwen3.5-ocr`，与 ASR 共用 `DASHSCOPE_API_KEY`。当前没有真实 OCR 云调用证据；本地 Vision OCR 仍可作为不外传数据的基线。Key 不进前端、不进 Git。

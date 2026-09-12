@@ -16,6 +16,7 @@ results or a different cloud provider.
 """
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import os
@@ -290,10 +291,47 @@ def _recognize_audio(path: Path, mime: str, attempt_id: str) -> RecognitionResul
     return RecognitionResult(text=text, provider="local-whisper", model=model, is_mock=False)
 
 
+def _recognize_dashscope_image(path: Path, mime: str, attempt_id: str) -> RecognitionResult:
+    """Call DashScope Qwen OCR through the OpenAI-compatible vision API."""
+    api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
+    if not api_key:
+        raise RecognitionError("provider_not_configured", "未配置 DASHSCOPE_API_KEY。", False)
+    model = os.getenv("DASHSCOPE_OCR_MODEL", "qwen3.5-ocr").strip() or "qwen3.5-ocr"
+    base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+    timeout = float(os.getenv("MEDIA_OCR_TIMEOUT_SECONDS", os.getenv("MEDIA_RECOGNITION_TIMEOUT_SECONDS", "60")))
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    data_url = f"data:{mime};base64,{encoded}"
+    body = {"model": model, "temperature": 0, "messages": [{"role": "user", "content": [
+        {"type": "image_url", "image_url": {"url": data_url}},
+        {"type": "text", "text": "请逐字提取图片中的文字。模糊、遮挡或无法确认的字符使用?，不要猜写、补写或解释。只返回识别到的原文。"},
+    ]}]}
+    req = urllib.request.Request(base_url + "/chat/completions", json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        {"Authorization": "Bearer " + api_key, "Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        code = "provider_auth_failed" if exc.code in {401, 403} else "provider_rate_limited" if exc.code == 429 else "provider_unavailable"
+        raise RecognitionError(code, "云端 OCR 请求失败。", code in {"provider_rate_limited", "provider_unavailable"}) from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RecognitionError("provider_timeout" if isinstance(exc, TimeoutError) else "provider_unavailable", "云端 OCR 暂时不可用，可稍后重试。", True) from exc
+    try:
+        content = payload["choices"][0]["message"]["content"]
+        text = content if isinstance(content, str) else "".join(str(x.get("text", "")) for x in content)
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RecognitionError("invalid_provider_response", "云端 OCR 返回格式无效。", True) from exc
+    if not text.strip():
+        raise RecognitionError("no_text_detected", "照片中没有识别到可用文字。", False)
+    return RecognitionResult(text=text.strip(), provider="dashscope", model=model, is_mock=False)
+
+
+
 def _recognize_image(path: Path, mime: str, attempt_id: str) -> RecognitionResult:
     provider = _provider_name("image")
     if provider in {"mock", "test"}:
         raise RecognitionError("mock_provider_not_allowed", "识别模块不在生产调用中自动使用 Mock。", False)
+    if provider in {"dashscope", "aliyun", "aliyun-ocr", "qwen-ocr"}:
+        return _recognize_dashscope_image(path, mime, attempt_id)
     if provider not in {"local", "vision", "macos-vision"}:
         raise RecognitionError("provider_not_configured", "当前未配置支持的 OCR 服务。", False)
     binary = Path(os.getenv("VISION_OCR_BINARY", str(DEFAULT_VISION_BINARY))).expanduser()
