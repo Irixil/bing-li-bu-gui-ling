@@ -2,6 +2,8 @@
 
 服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）。**只有创建记录要求 `Idempotency-Key`**；其余写入用 `expected_version` 防止覆盖。服务重启后重新获取 token。
 
+`organize`、`review`、`revise` 的 `expected_version` 都必须是正整数。缺失、布尔值、字符串、零或负数返回 `400 expected_version_must_positive_integer`；与当前版本不一致返回 `409 stale_version`。服务器不会替调用方自动选择最新版本。
+
 本 MVP 用单人本地会话，不发送 `X-Auth-Token`。已有 `/api/auth/*` 属于保留的账号兼容接口，不属于此次老人端必接合同，也不代表多家庭鉴权已安全完成。
 
 ## 核心流程
@@ -16,6 +18,8 @@
 
 成功 `201`（重复幂等请求为 `200`）：`{ok:true, created:true|false, event}`。event 立即含 `raw_text`、`state:"inbox"`、`version:1`、`local_safety`。前端收到这个响应后就可以显示“已保存”，不要等 AI。
 
+完整 Event 包含：`record_id`、`raw_text`、`source_kind`、`actor_name`、`occurred_time`、`recorded_at`、`state`、`version`、`draft`、`result_meta`、`review_notes`、`related_record_ids`、`supersedes_id`、`created_at`、`updated_at`、`household_id`、`local_safety`、`confirmation_scope`。未整理时 `draft/result_meta` 为 null；只有状态为 `recorded` 时 `confirmation_scope` 为 `record_accuracy`。本地单人 MVP 的前端不要根据 `household_id` 构建账号或家庭功能。
+
 `raw_text` 必填，最多 10000 字符；`actor_name` 必填，最多 80 字符。`source_kind` 必填，可用 `elder`、`document`、`family_observation`、`family_report`、`caregiver`、`clinician_evidence`、`audio_transcript`、`system`、`unknown`。老人手输用 elder；公开论文摘要用 document，不能冒充亲口自述。
 
 可选 `occurred_time:string|null`、`related_record_ids:string[]`（最多 10 个已存在记录 ID）。不要传 `recorded_at`，让服务器记录输入时间；不知道发生时间就不填。新记录 ID 由后端生成。
@@ -24,7 +28,7 @@
 
 ### `POST /api/events/{record_id}/organize` 整理
 
-请求：`{"expected_version":1}`。成功 `200`，event 变为 `draft`、版本加一，并返回 `output`、`provider`、`ai_failed:false`。output 是 `event-v0.3` 草稿，仍需人工核对。
+请求：`{"expected_version":1}`。成功 `200`，event 变为 `draft`、版本加一，并返回 `ok:true`、`ai_failed:false`、`event`、`output`、`provider`、`trace_id`、`prompt_version`、`schema_version`、`latency_ms`、`safety_guard_applied`、`raw_text_preserved:true`、`local_safety` 及扁平安全字段。output 是 `event-v0.3` 草稿，仍需人工核对；`event.draft` 与本次保存的 output 一致。
 
 AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、`raw_text_preserved:true`、`ai_failed:true`、`failure_reason`、`local_safety` 和扁平的 `danger_detected/escalation_level/review_role/danger_reminder`。第一次整理失败时 event 保持 `inbox`，没有伪造 draft。若旧草稿已存在，失败保留原版本和旧草稿；页面必须注明本次重新整理失败，不能把旧结果当成本次成功。危险原文仍可用详情和历史接口查询。
 
@@ -43,7 +47,7 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 }
 ```
 
-上面省略了完整 `event`、`local_safety`、`trace_id` 和审计元数据以便阅读，实际响应包含它们。可以从历史的 `audit` 看到失败类型和原因。前端应先解析 JSON 再处理 `response.ok`，不能遇到非 2xx 就丢掉响应体。
+上面省略了完整 `event`、`local_safety`、`trace_id` 和审计元数据以便阅读，实际响应还包含 `failure_type`、`failure_cause_type`、`raw_text_sha256`、`prompt_version`、`schema_version`。这些字段用于问题追踪和审计关联；普通页面应依赖 `error`、`failure_reason`、`event`、`raw_text_preserved`、`local_safety` 与扁平安全字段，不应根据异常类名决定用户流程。可以从历史的 `audit` 看到失败类型和原因。前端应先解析 JSON 再处理 `response.ok`，不能遇到非 2xx 就丢掉响应体。
 
 ### `POST /api/events/{record_id}/review` 核对
 
@@ -61,7 +65,7 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 
 ### `POST /api/handoffs`、`GET /api/handoffs/{id}`
 
-生成请求体 `{}`，返回 `201 {ok:true,handoff}`；读取返回 `200 {ok:true,handoff}`。handoff 包含 `handoff_id`、`created_at`、`items`、`unresolved_count`。每个 item 是完整 Event，加上 `unresolved` 和 `unresolved_reasons`。
+生成请求体 `{}`，返回 `201 {ok:true,handoff}`；读取返回 `200 {ok:true,handoff}`。handoff 包含 `handoff_id`、`created_at`、`household_id`、`items`、`unresolved_count`。每个 item 是完整 Event，加上 `unresolved` 和 `unresolved_reasons`。本地单人前端不使用 `household_id`；它只是兼容层归属信息。
 
 危险记录会带 `unresolved:true`、`unresolved_reasons` 中的 `local_danger_detected`；核对记录不会把它清掉。未核对、用药/医嘱、专业复核要求、升级和冲突也会成为未解决原因；不要自行把这些字段清空。
 
@@ -77,7 +81,9 @@ AI 失败、超时、断网或结果非法时为 `422`，响应仍含 `event`、
 | needs_review | 已退回待整理 | 重新整理、修订 |
 | superseded | 已被新记录替代 | 查看旧原文和历史 |
 
-所有状态都不是医学安全等级。200/201 为成功；400 为字段或请求格式错误；403 为本地 token/Origin 错误；404 为记录不存在；409 为版本、状态或幂等键冲突；422 为整理失败。一般错误格式 `{ok:false,error:"错误码"}`。数据库本身无法保存时，不能显示“已保存”。
+所有状态都不是医学安全等级。200/201 为成功；400 为字段或请求格式错误；403 为本地 token/Origin 错误；404 为记录不存在；409 为版本、状态或幂等键冲突；422 为整理失败；500 为未预期的服务端错误。一般错误格式 `{ok:false,error:"错误码"}`。未预期异常只返回 `internal_server_error`，不会向客户端暴露数据库路径、供应商正文或内部异常信息。数据库本身无法保存时，不能显示“已保存”。
+
+浏览器不使用开发代理而直接跨域访问时，后端 `.env` 的 `ALLOWED_ORIGIN` 必须与页面 Origin 完全一致。预检支持 `GET, POST, OPTIONS`，并允许 `Content-Type`、`Idempotency-Key`、`X-Session-Token` 和兼容账号接口使用的 `X-Auth-Token`。不匹配的 Origin 不会获得跨域许可，写请求返回 403。
 
 ## 前端必须怎么处理
 

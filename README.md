@@ -49,6 +49,10 @@ python -m backend.evaluate_mock
 
 # 对常用数据库做一致性备份
 python -m scripts.backup
+
+# 检查前端 TypeScript 接口合同（首次需安装 Node.js 22 与依赖）
+npm ci
+npm run check:contracts
 ```
 
 导入脚本会保存、整理并模拟点击“核对记录准确”，生成交接材料。它是软件流程演示，不代表老人或医生实际参与了确认。重复导入同一份未改数据不会重复建记录。
@@ -68,6 +72,9 @@ python -m scripts.backup
 | 文件/目录 | 用途 |
 |---|---|
 | [docs/PROJECT-PLAN.md](docs/PROJECT-PLAN.md) | 当前定位、清理取舍、五人分工、今晚和明天的顺序 |
+| [docs/B-BACKEND-PLAN.md](docs/B-BACKEND-PLAN.md) | B 已认领的后端数据/API 范围、工作顺序和验收标准 |
+| [docs/B-INTEGRATION-HANDOFF.md](docs/B-INTEGRATION-HANDOFF.md) | A/C/D/E 与 B 的同步联调、合并顺序和比赛冻结门槛 |
+| [docs/decisions/0001-backend-mvp-stack.md](docs/decisions/0001-backend-mvp-stack.md) | 比赛 MVP 后端技术栈与开发规则 |
 | [docs/API.md](docs/API.md) | 前后端正式接线合同，包含失败与危险提醒 |
 | [contracts/api.ts](contracts/api.ts) | 与当前接口对应的 TypeScript 类型，供前端导入参考 |
 | [frontend/README.md](frontend/README.md) | 项目负责人的前端任务与验收清单 |

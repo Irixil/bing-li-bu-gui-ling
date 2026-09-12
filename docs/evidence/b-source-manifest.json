@@ -1,0 +1,57 @@
+{
+  "description": "B backend/API branch verification manifest. This identifies the locally verified software objects; it is not browser, real-model, clinical, or public-deployment evidence.",
+  "verified_at": "2026-09-12",
+  "baseline_commit": "e1a5967",
+  "branch": "fix/backend-api",
+  "environment": {
+    "python": "3.12.13",
+    "node": "24.18.1",
+    "npm": "11.16.0",
+    "provider": "mock"
+  },
+  "results": {
+    "pytest": {
+      "tests": 112,
+      "passed": 112,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit": "docs/evidence/b-backend-tests.xml"
+    },
+    "typescript_contracts": "passed",
+    "mock_evaluation": {
+      "total": 40,
+      "schema_pass": 40,
+      "safety_pass": 40,
+      "errors": 0
+    },
+    "public_case_demo": {
+      "passed": true,
+      "provider": "mock",
+      "patients": 1,
+      "extracts": 3
+    }
+  },
+  "files": {
+    ".github/workflows/backend.yml": "b0e93009c2e81ca469e157c91553318f84d73d56495b2641a7757c64c60b5ae3",
+    "backend/adapter.py": "772991bcc58bd2bb2af09451e74376800b4a70feadd3a607e313320eb8b3a68a",
+    "backend/safety.py": "79def75add6af27990ef69d56367cee3489cd379c58100d7edd40bb461f9fdd2",
+    "backend/server.py": "787ee1cf8cfd8c0c658638d0ac3aca6af93a7d9bc81a75c301b653f7a64a1a42",
+    "backend/store.py": "8f05542b8f36c5593836274cf19efacd2f579c6133e52b159f90468e0106b94e",
+    "config/event-v0.3.schema.json": "ad9520e8413d8d6f72c81a1969650be38efa4b59704a0e9602129110f5098f7f",
+    "contracts/api.ts": "070964571edb77153c4bdf95ac64e0b01709bf9c7c3c39823e32b89ee17654bf",
+    "docs/API.md": "7964257c222acddfcf2bf07bd6473ead3d55ee0a2574b5ce60260785a9f804db",
+    "docs/B-BACKEND-PLAN.md": "f168b3e0af0dd2885d245c13bb5bddc0965e763b65fbaf58d4204cc4a4669705",
+    "docs/B-INTEGRATION-HANDOFF.md": "577af2ceb6599e8bbab1063087c970a248e3d52a740e2e97a4da199acd910be4",
+    "docs/B-PR-HANDOFF.md": "baa65ad201cda8dd0681150cd4ee9d2684b045e6b5edcb7e97edf19dd743d7b0",
+    "docs/VALIDATION.md": "230bc5c7b663377dd0764ddb72f59a7e98148282255961ee36c206a8633ef691",
+    "docs/decisions/0001-backend-mvp-stack.md": "949eacbd43fb43c30eda86dfb67558e0756edc50be6660bb4011cec6bab106dc",
+    "docs/evidence/b-backend-tests.xml": "9172f2dcbf2f963b0b1bb0da4c9ea41a130322bd8fbf1a124b645bfea8bfeedd",
+    "package-lock.json": "92aba8556514f44e78a00e3eab06332aca901ab01c2e2be204ad28224ee86eb1",
+    "package.json": "7ecf6bd04bf879508cfd6d8d1b5c8847444a5a6ee9a3541f1f00240290bf7031",
+    "tests/test_api_contract.py": "18384287d4f1253df82aa46c525d96586cd6514786641e74dc80a4474e35f92a",
+    "tests/test_cors_contract.py": "7d7a5388a8056c09db923062e75d34e2c43a90f723f893c83e56b0265aa55dd4",
+    "tests/test_process_restart_contract.py": "f2a9abe60476b53c820a1dda852ba728d8e51e1288cfbfa8f1be036a089e9865",
+    "tsconfig.contracts.json": "859eada711f3effc7027715b5f2b540315f3913935b68f2f3a90a882b552be53"
+  }
+}

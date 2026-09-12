@@ -19,6 +19,9 @@ Project-local commands, architecture and stable conventions may be added outside
 ## Repository working conventions
 
 - Active MVP scope and proposed ownership: `docs/PROJECT-PLAN.md`. API truth: `docs/API.md` with `contracts/api.ts`; implementation lives in `backend/`.
+- B has claimed backend data/API ownership. Follow `docs/B-BACKEND-PLAN.md` and the frozen MVP stack in `docs/decisions/0001-backend-mvp-stack.md` for backend work.
+- Backend behavior is tested at the HTTP interface and the public `SQLiteStore` interface. Use one red-green vertical behavior at a time; mock only the external model provider.
+- Do not migrate the web framework, ORM or database during the competition MVP unless a new technical decision is explicitly accepted.
 - The user owns the frontend. Do not expand portals or payment scope without a new decision.
 - Run from repository root with Python 3.12: `python -m pytest -q`, `python -m scripts.demo`.
 - Public case adaptations must retain provenance and licensing. Synthetic cases must stay explicitly synthetic.

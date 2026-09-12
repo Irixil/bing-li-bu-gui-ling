@@ -6,10 +6,10 @@ from urllib.parse import urlparse, unquote
 from pathlib import Path
 try:
  from .adapter import AdapterError, Config, organize_event
- from .store import SQLiteStore, StoreError, Unauthorized, Forbidden
+ from .store import SQLiteStore, StoreError, NotFound, Unauthorized, Forbidden, Conflict, expected_version
 except ImportError:
  from adapter import AdapterError, Config, organize_event
- from store import SQLiteStore, StoreError, Unauthorized, Forbidden
+ from store import SQLiteStore, StoreError, NotFound, Unauthorized, Forbidden, Conflict, expected_version
 ROOT=Path(__file__).resolve().parents[1]; STATIC=(ROOT/'frontend'/'dist').resolve(); SESSION_TOKEN=secrets.token_urlsafe(24)
 DB_PATH=os.getenv('DB_PATH',os.getenv('API_DB_PATH',str(ROOT/'runtime'/'records.sqlite3'))); STORE=SQLiteStore(DB_PATH)
 ALLOWED_ORIGIN=os.getenv('ALLOWED_ORIGIN','')
@@ -40,8 +40,12 @@ class Handler(BaseHTTPRequestHandler):
   if not token:return None
   try:return STORE.authorize(token, permission, household_id) if permission else STORE.authenticate(token)
   except StoreError: return None
- def do_OPTIONS(self): self.send_response(204);self.send_header('Access-Control-Allow-Headers','Content-Type, Idempotency-Key, X-Session-Token, X-Auth-Token');self.end_headers()
+ def do_OPTIONS(self): self.send_response(204);self.send_header('Access-Control-Allow-Methods','GET, POST, OPTIONS');self.send_header('Access-Control-Allow-Headers','Content-Type, Idempotency-Key, X-Session-Token, X-Auth-Token');self.end_headers()
  def do_GET(self):
+  try:return self._do_GET()
+  except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
+  except Exception:return self.send_json(500,{'ok':False,'error':'internal_server_error'})
+ def _do_GET(self):
   p=unquote(urlparse(self.path).path)
   if p=='/health':
    c=Config.from_env();return self.send_json(200,{'ok':True,'service':'medical-handoff-p0','provider':c.provider,'storage':'sqlite','mode':'local_single_household','schema_version':'event-v0.3','session_token':SESSION_TOKEN})
@@ -88,7 +92,8 @@ class Handler(BaseHTTPRequestHandler):
   if not self.csrf():return self.send_json(403,{'ok':False,'error':'csrf_or_origin_rejected'})
   p=urlparse(self.path).path
   try:b=self.body()
-  except Exception as e:return self.send_json(400,{'ok':False,'error':str(e)})
+  except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
+  except (json.JSONDecodeError,UnicodeDecodeError,ValueError):return self.send_json(400,{'ok':False,'error':'invalid_json_payload'})
   actor=str(b.get('actor_name') or '本地用户')
   try:
    if p=='/api/auth/households':
@@ -121,10 +126,12 @@ class Handler(BaseHTTPRequestHandler):
     ctx=self._auth_ctx();
     if self.headers.get('X-Auth-Token') and ctx is None:return self.send_json(401,{'ok':False,'error':'invalid_session'})
     rid=z[2];e=STORE.get(rid,ctx['household_id'] if ctx else None)
-    if not e:raise StoreError('event_not_found')
+    if not e:raise NotFound('event_not_found')
     if z[3]=='organize':
      if ctx: STORE.authorize(self.headers.get('X-Auth-Token'),'organize',ctx['household_id'])
-     expected=b.get('expected_version',e['version']); related=[STORE.get(x) for x in e.get('related_record_ids',[])]; payload={**e,'history':related}
+     expected=expected_version(b.get('expected_version'))
+     if e['version']!=expected:raise Conflict('stale_version')
+     related=[STORE.get(x) for x in e.get('related_record_ids',[])]; payload={**e,'history':related}
      safety=e['local_safety']
      try:
       r=organize_event(payload)
@@ -145,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
      if ctx: STORE.authorize(self.headers.get('X-Auth-Token'),'revise',ctx['household_id'])
      return self.send_json(201,{'ok':True,'event':STORE.revise(rid,b.get('expected_version'),b,actor)})
   except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
-  except Exception as e:return self.send_json(500,{'ok':False,'error':str(e)})
+  except Exception:return self.send_json(500,{'ok':False,'error':'internal_server_error'})
   return self.send_json(404,{'ok':False,'error':'not_found'})
 def serve(host='127.0.0.1',port=None): ThreadingHTTPServer((host,int(os.getenv('API_PORT',port or 18768))),Handler).serve_forever()
 if __name__=='__main__':serve()
