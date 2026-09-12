@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_kind",
+    "summary",
+    "time",
+    "claims",
+    "review_required",
+    "review_role",
+    "escalation_level",
+    "conflict",
+    "provenance_preserved",
+    "plan_change_allowed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "event-v0.3"
+    },
+    "event_kind": {
+      "enum": [
+        "symptom",
+        "measurement",
+        "medication",
+        "instruction",
+        "document",
+        "question",
+        "handoff",
+        "other"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurred",
+        "recorded",
+        "certainty"
+      ],
+      "properties": {
+        "occurred": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recorded": {
+          "type": "string",
+          "minLength": 1
+        },
+        "certainty": {
+          "enum": [
+            "exact",
+            "range",
+            "daypart",
+            "relative",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "source_kind",
+          "record_id",
+          "quote"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_kind": {
+            "enum": [
+              "elder",
+              "family_observation",
+              "family_report",
+              "caregiver",
+              "clinician_evidence",
+              "document",
+              "audio_transcript",
+              "system",
+              "unknown"
+            ]
+          },
+          "record_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "review_required": {
+      "type": "boolean"
+    },
+    "review_role": {
+      "enum": [
+        "none",
+        "family",
+        "clinician_or_pharmacist",
+        "emergency_services"
+      ]
+    },
+    "escalation_level": {
+      "enum": [
+        "none",
+        "urgent",
+        "emergency"
+      ]
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "record_refs"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "record_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "provenance_preserved": {
+      "const": true
+    },
+    "plan_change_allowed": {
+      "const": false
+    },
+    "follow_up_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "diagnosis",
+          "medication_change",
+          "source_overwrite",
+          "invented_time_or_dose"
+        ]
+      }
+    }
+  }
+}

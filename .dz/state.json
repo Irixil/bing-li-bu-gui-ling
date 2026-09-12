@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.1",
+  "workflow_version": "2026-09-10.3",
+  "project": {
+    "name": "病历不归零 MVP",
+    "language": "zh"
+  },
+  "run": {
+    "status": "active",
+    "product_verdict": "not_assessed",
+    "stage": "discovery",
+    "next_action": "按用户已明确的后端离线兜底要求验证并整理协作包；五人分工方案保持建议稿；公开病例必须记录许可和改编来源",
+    "waiting_for": null,
+    "pending_risk_id": null,
+    "authorized_risk_id": null,
+    "blocker": null,
+    "blocker_kind": null,
+    "resume_when": null,
+    "finish_reason": null,
+    "updated_at": "2026-09-12T05:02:11+00:00"
+  },
+  "decisions": {
+    "intent": {
+      "status": "not_created",
+      "path": "docs/sdlc/intent.md",
+      "artifact_sha256": null,
+      "accepted_by": null,
+      "acceptance_reference": null,
+      "accepted_at": null,
+      "proposal_path": null,
+      "proposal_sha256": null,
+      "proposal_created_at": null
+    },
+    "spec": {
+      "status": "not_created",
+      "path": "docs/sdlc/spec.md",
+      "artifact_sha256": null,
+      "accepted_by": null,
+      "acceptance_reference": null,
+      "accepted_at": null,
+      "proposal_path": null,
+      "proposal_sha256": null,
+      "proposal_created_at": null
+    },
+    "plan": {
+      "status": "not_created",
+      "path": "docs/sdlc/plan.md",
+      "artifact_sha256": null,
+      "accepted_by": null,
+      "acceptance_reference": null,
+      "accepted_at": null,
+      "proposal_path": null,
+      "proposal_sha256": null,
+      "proposal_created_at": null
+    }
+  },
+  "target": {
+    "id": null,
+    "contract_sha256": null,
+    "revision": null,
+    "environment": null,
+    "source": null,
+    "artifact_path": null,
+    "artifact_sha256": null,
+    "set_at": null
+  },
+  "requirements": {
+    "spec_sha256": null,
+    "items": []
+  },
+  "work_items": [],
+  "evidence": [],
+  "risks": [],
+  "issues": [
+    {
+      "id": "MVP-HANDOFF",
+      "title": "后端已验证，整个比赛网页仍需前端与真实模型联调",
+      "kind": "plan_gap",
+      "status": "open",
+      "source": "用户明确要求、当前代码、docs/evidence/backend-tests.xml 与公开病例 HTTP 演示报告",
+      "expected": "明天老人端网页可以跑通完整演示，五人按统一接口协作",
+      "actual": "71项后端测试、40条合成回归、1份公开病例3段资料及进程重启通过；前端未开发、真实模型未测；五人分工保持建议稿",
+      "impact": "不能把后端通过说成整个比赛demo或临床产品已完成；下一步由用户负责前端，团队按docs/PROJECT-PLAN.md接线与排练",
+      "route": "plan",
+      "work_item_id": null,
+      "evidence_ids": [],
+      "resolution": null,
+      "prevention": null,
+      "created_at": "2026-09-12T05:02:11+00:00",
+      "updated_at": "2026-09-12T05:02:11+00:00"
+    }
+  ]
+}

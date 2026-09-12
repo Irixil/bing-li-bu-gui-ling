@@ -1,0 +1,39 @@
+{
+  "dataset_version": "public-case-extracts-v1",
+  "dataset_type": "adapted_published_real_case",
+  "patient_count": 1,
+  "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12890330/",
+  "doi": "10.5811/cpcem.47061",
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "Dunn RE, Klucher B, Bontempo LJ, Gatz JD. 70-year-old Woman with Chest Tightness and Shortness of Breath. Clinical Practice and Cases in Emergency Medicine. DOI:10.5811/cpcem.47061. © 2025 Dunn et al.",
+  "adaptation": "本项目节选、中文翻译和概括；年龄改为年龄段；省略地域、社会背景、诊断、治疗和影像。以下 3 条来自同一真实公开病例，不是 3 位患者，不是原始病历或逐字患者发言。",
+  "cases": [
+    {
+      "id": "PMC12890330-01",
+      "case_group": "PMC12890330",
+      "source_kind": "document",
+      "source_section": "CASE PRESENTATION, first paragraph",
+      "input": "公开病例资料摘要：一位70多岁女性，在就诊前一个月间断胸闷，活动时加重，并有乏力和活动后呼吸困难。发生的具体日期未公开。",
+      "expected_local_danger": true
+    },
+    {
+      "id": "PMC12890330-02",
+      "case_group": "PMC12890330",
+      "source_kind": "document",
+      "source_section": "CASE PRESENTATION, first paragraph",
+      "input": "同一公开病例资料摘要：患者女儿报告，患者的心率在此前数月曾低至每分钟40次。具体测量日期未公开。",
+      "expected_local_danger": false,
+      "limitation": "false 只表示本版规则未命中；本版尚未覆盖心率数值规则，绝不表示该数值正常或无需就医。"
+    },
+    {
+      "id": "PMC12890330-03",
+      "case_group": "PMC12890330",
+      "source_kind": "document",
+      "source_section": "CASE PRESENTATION, first paragraph, review of systems",
+      "input": "同一公开病例资料摘要：患者还报告数月内有食欲下降、腹部疼痛、腹泻、双腿和背部疼痛，以及全身无力、乏力。具体起始日期未公开。",
+      "expected_local_danger": false,
+      "limitation": "false 仅表示未命中本地关键词规则，不能解释为医学上的正常。"
+    }
+  ]
+}
