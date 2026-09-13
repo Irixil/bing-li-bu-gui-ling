@@ -405,10 +405,27 @@ export type MediaLinkStatus =
   | "link_failed";
 
 export type MediaRecognitionError = {
-  code: string;
+  /** Stable provider/recognition failure persisted on a media attempt. */
+  code: MediaRecognitionErrorCode;
   message: string;
   retryable: boolean;
 };
+
+export const MEDIA_RECOGNITION_ERROR_CODES = [
+  "provider_not_configured",
+  "unsupported_format",
+  "invalid_media",
+  "limit_exceeded",
+  "no_text_detected",
+  "provider_timeout",
+  "provider_unavailable",
+  "provider_auth_failed",
+  "provider_rate_limited",
+  "invalid_provider_response",
+] as const;
+
+export type MediaRecognitionErrorCode =
+  (typeof MEDIA_RECOGNITION_ERROR_CODES)[number];
 
 export type MediaRecognitionAttempt = {
   attempt_id: string;
@@ -592,20 +609,47 @@ export type MediaOriginalRequestHeaders = {
 export const MEDIA_HTTP_ERROR_CODES = [
   "media_limits_not_configured",
   "request_too_large",
+  "body_too_large",
+  "body_required",
+  "body_must_object",
+  "invalid_json_payload",
+  "invalid_content_length",
+  "incomplete_request_body",
+  "invalid_multipart_payload",
   "unsupported_format",
+  "limit_exceeded",
   "content_type_kind_mismatch",
+  "invalid_media_kind",
+  "invalid_original_filename",
+  "invalid_sha256",
+  "expected_parts_must_positive_integer",
+  "expected_size_must_positive_integer",
+  "invalid_media_size",
+  "invalid_part_index",
+  "invalid_part_size",
   "media_not_found",
   "upload_not_found",
+  "media_id_conflict",
+  "upload_id_conflict",
   "idempotency_key_payload_mismatch",
   "upload_conflict",
+  "upload_not_open",
   "upload_incomplete",
   "upload_completed",
+  "completed_upload_conflict",
   "stale_version",
   "idempotency_key_required",
   "invalid_media",
   "invalid_upload",
   "invalid_part",
   "integrity_mismatch",
+  "storage_corrupt",
+  "unsafe_storage",
+  "storage_failed",
+  "media_not_saved",
+  "recognition_not_retryable",
+  "stale_recognition_attempt",
+  "safety_scan_required",
   "provider_timeout",
   "provider_unavailable",
   "provider_not_configured",
@@ -613,7 +657,10 @@ export const MEDIA_HTTP_ERROR_CODES = [
   "provider_rate_limited",
   "invalid_provider_response",
   "no_text_detected",
-  "storage_failed",
+  "household_access_denied",
+  "cross_household_reference_denied",
+  "related_record_not_found",
+  "complete_body_must_be_empty_object",
   "media_request_failed",
   "media_backend_unavailable",
   "invalid_range",

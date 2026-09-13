@@ -7,8 +7,27 @@ const PHOTO_KEY = 'elder_demo_photos_v1';
 const $ = id => document.getElementById(id);
 const views = [...document.querySelectorAll('.view')];
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
-function showView(id){views.forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));window.scrollTo({top:0,behavior:'smooth'});if(id==='recordsView')loadEvents();if(id==='homeView')renderHome()}
-document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+function clearRecordPanels(){
+  const detail=$('detail');if(detail){detail.classList.add('hidden');detail.innerHTML=''}
+  const handoff=$('handoff');if(handoff){handoff.classList.add('hidden');handoff.innerHTML=''}
+  const banner=$('dangerBanner');if(banner){banner.classList.add('hidden');banner.innerHTML=''}
+  current=null;
+}
+function showView(id){
+  // Detail, handoff and the fixed safety banner belong to the records view.
+  // Clear them whenever navigation starts so an older event cannot leak into
+  // a different screen or appear as if it were the newly selected record.
+  clearRecordPanels();
+  views.forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));window.scrollTo({top:0,behavior:'smooth'});if(id==='recordsView')loadEvents();if(id==='homeView')renderHome()
+}
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
+  // Media entry buttons are disabled after capability discovery when the
+  // running instance cannot safely accept uploads.  Keep the guard here as
+  // well as the DOM disabled state because some touch/browser shims still
+  // dispatch a click for a disabled button.
+  if(b.disabled)return;
+  showView(b.dataset.view)
+}));
 async function health(){
   try {
     const r=await fetch(API+'/health'); const j=await r.json();
@@ -40,12 +59,13 @@ function stateLabel(s){return ({inbox:'已保存，待整理',draft:'整理草�
 function dateText(v){return v?new Date(v).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}
 function renderArchive(){
   const ebox=$('archiveEvents'); if(!ebox)return;
-  const active=events.filter(e=>e.state!=='superseded'); $('archiveEventCount').textContent=active.length;
+  const active=latestFirst(events.filter(e=>e.state!=='superseded')); $('archiveEventCount').textContent=active.length;
   ebox.innerHTML=active.length?active.slice(0,3).map(e=>`<button class="recent-item" data-id="${e.record_id}"><span class="date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</span><p>${escapeHtml(e.raw_text)}</p></button>`).join(''):'<p class="muted">还没有症状记录</p>';
   ebox.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{showView('recordsView');showDetail(b.dataset.id)});
 }
-function renderHome(){const box=$('homeRecent');if(!box)return;if(!events.length){box.innerHTML='<p class="muted">还没有记录，先说下今天的情况吧。</p>';return}box.innerHTML=events.filter(e=>e.state!=='superseded').slice(0,3).map(e=>`<button class="recent-item" data-id="${e.record_id}"><span class="date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</span><p>${escapeHtml(e.raw_text)}</p></button>`).join('');box.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{showView('recordsView');setTimeout(()=>showDetail(b.dataset.id),80)})}
-function renderList(){const box=$('eventsList');if(!box)return;if(!events.length){box.innerHTML='<p class="muted">还没有记录，先写下第一次情况吧。</p>';return}box.innerHTML='';events.filter(e=>e.state!=='superseded').forEach(e=>{const n=document.importNode($('eventTpl').content,true);n.querySelector('.event-date').textContent=`${dateText(e.recorded_at)} · ${stateLabel(e.state)}`;n.querySelector('.event-raw').textContent=e.raw_text;n.querySelector('.badges').innerHTML=e.local_safety?.danger_detected?'<span class="badge warn">需要关注</span>':'';n.querySelector('.view-btn').onclick=()=>showDetail(e.record_id);box.appendChild(n)})}
+function latestFirst(items){return items.slice().sort((a,b)=>{const at=Date.parse(a.recorded_at||a.created_at||a.updated_at||'')||0;const bt=Date.parse(b.recorded_at||b.created_at||b.updated_at||'')||0;return bt-at||String(b.record_id||b.media_id||'').localeCompare(String(a.record_id||a.media_id||''))})}
+function renderHome(){const box=$('homeRecent');if(!box)return;if(!events.length){box.innerHTML='<p class="muted">还没有记录，先说下今天的情况吧。</p>';return}box.innerHTML=latestFirst(events.filter(e=>e.state!=='superseded')).slice(0,3).map(e=>`<button class="recent-item" data-id="${e.record_id}"><span class="date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</span><p>${escapeHtml(e.raw_text)}</p></button>`).join('');box.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{showView('recordsView');setTimeout(()=>showDetail(b.dataset.id),80)})}
+function renderList(){const box=$('eventsList');if(!box)return;if(!events.length){box.innerHTML='<p class="muted">还没有记录，先写下第一次情况吧。</p>';return}box.innerHTML='';latestFirst(events.filter(e=>e.state!=='superseded')).forEach(e=>{const n=document.importNode($('eventTpl').content,true);n.querySelector('.event-date').textContent=`${dateText(e.recorded_at)} · ${stateLabel(e.state)}`;n.querySelector('.event-raw').textContent=e.raw_text;n.querySelector('.badges').innerHTML=e.local_safety?.danger_detected?'<span class="badge warn">需要关注</span>':'';n.querySelector('.view-btn').onclick=()=>showDetail(e.record_id);box.appendChild(n)})}
 async function loadEvents(){
   const {r,j}=await api('/api/events');
   if(r.ok){demoMode=false;events=j.events||[];setModeLabel();renderList();renderHome();renderArchive();}
@@ -79,7 +99,7 @@ function renderDetail(e,options={}){
   $('reviseBtn').onclick=()=>revise(e);$('historyBtn').onclick=()=>historyView(e);
 }
 async function showDetail(id){const {r,j}=await api('/api/events/'+id);if(!r.ok){toast('详情读取失败，请重试');return;}renderDetail(j.event)}
-function closeDetail(){$('detail').classList.add('hidden')}
+function closeDetail(){clearRecordPanels()}
 async function organize(e){
   const b=$('organizeBtn');if(!b||b.disabled)return;b.disabled=true;b.textContent='整理中…';
   const x=await api('/api/events/'+e.record_id+'/organize',{method:'POST',body:JSON.stringify({expected_version:e.version})});

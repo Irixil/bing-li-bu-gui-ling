@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import importlib.util
+import ipaddress
 import os
 import re
 import shutil
 from pathlib import Path
 from typing import MutableMapping
+from urllib.parse import urlsplit
 
 
 def load_environment(env_file: Path, environ: MutableMapping[str, str] | None = None) -> None:
@@ -51,6 +53,43 @@ def prepare_demo_environment(
             env[key] = "mock"
     # No ALLOWED_ORIGIN default: the API serves its own UI on the same origin.
     return env
+
+
+def _valid_media_http_endpoint(url: str) -> bool:
+    """Accept a full HTTPS endpoint, with HTTP reserved for loopback tests."""
+    if not url or re.search(r"[\s\x00-\x1f\x7f]", url) or "\\" in url:
+        return False
+    try:
+        parsed = urlsplit(url)
+        host = parsed.hostname
+        port = parsed.port
+        if (
+            parsed.scheme not in {"https", "http"}
+            or not host
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+            or "?" in url
+            or "#" in url
+            or port is not None and not 1 <= port <= 65535
+            or not parsed.path.strip("/")
+        ):
+            return False
+        host.encode("idna")
+        if "%" in host or re.search(r"[^a-zA-Z0-9.\-:\u0080-\uffff]", host):
+            return False
+        if parsed.scheme == "http":
+            loopback = host.lower().rstrip(".") == "localhost"
+            try:
+                loopback = loopback or ipaddress.ip_address(host).is_loopback
+            except ValueError:
+                pass
+            if not loopback:
+                return False
+        return True
+    except (ValueError, UnicodeError):
+        return False
 
 
 def check_demo_configuration(
@@ -103,6 +142,12 @@ def check_demo_configuration(
                 # then reject a selected value containing only whitespace.
                 if not next((env[key] for key in keys if env.get(key)), "").strip():
                     issues[section].append("缺少 " + " / ".join(keys))
+            if provider in {"openai_compatible", "openai-compatible"} and value(prefix + "_URL"):
+                if not _valid_media_http_endpoint(value(prefix + "_URL")):
+                    issues[section].append(
+                        prefix + "_URL 必须为 HTTPS 完整端点（仅本机回环地址可用 HTTP），"
+                        "且不能含登录信息、query 或 fragment"
+                    )
             if prefix == "MEDIA_ASR" and provider == "dashscope_streaming":
                 if value(prefix + "_URL"):
                     from backend.recognition import RecognitionError, _validate_dashscope_url

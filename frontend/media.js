@@ -1,10 +1,63 @@
 // P0 saved-media upload and recognition; no change to the VAD algorithm.
-let mediaItems=[], uploadBusy=false, selectedPhoto=null, pendingRecordingBlob=null;
+let mediaItems=[], uploadBusy=false, selectedPhoto=null, pendingRecordingBlob=null, mediaCapabilities=null;
 const recognitionBusy=new Set();
 const originalUrls=new Map();
 const mediaStatus=$('mediaStatus');
-const mediaLabel=m=>`${m.kind==='audio'?'录音':'照片'} · 原件${m.save_status==='saved'?'已保存':'尚未保存完整'} · ${({not_started:'待识别',processing:'识别处理中',succeeded:'文字已识别，待核对',failed:'识别失败',interrupted:'识别中断，可重试'})[m.recognition_status]||m.recognition_status}`;
+const mediaLabel=m=>`${m.kind==='audio'?'录音':'照片'} · 原件${m.save_status==='saved'?'已保存':'尚未保存完整'} · ${({not_started:'待识别',processing:'识别处理中',succeeded:'文字已识别，待核对',failed:'识别失败',interrupted:'识别中断'})[m.recognition_status]||m.recognition_status}`;
 function mediaMessage(text){mediaStatus.textContent=text;}
+function mediaRetryable(m){
+  // The API puts retryability on the current attempt's error.  Accept the
+  // compatibility locations too, but never infer that a terminal failure is
+  // retryable merely because it has a failed status.
+  if(m?.recognition_status==='interrupted')return m.recognition?.retryable!==false;
+  if(m?.recognition_status!=='failed')return false;
+  return m.recognition?.retryable===true||m.recognition?.error?.retryable===true||m.retryable===true;
+}
+function capabilityMessage(c){
+  if(c?.enabled===true)return '';
+  if(c?.disabled_reason==='media_limits_not_configured')return '当前实例未配置媒体资源保护边界，媒体上传暂不可用。';
+  return '媒体上传能力暂不可用，请检查服务配置后刷新。';
+}
+function setMediaCapability(c){
+  mediaCapabilities=c||null;
+  const disabled=!c||c.enabled!==true;
+  const status=$('mediaCapabilityStatus');if(status){status.textContent=capabilityMessage(c);status.classList.toggle('error',disabled);}
+  const photoStatus=$('photoCapabilityStatus');if(photoStatus){photoStatus.textContent=capabilityMessage(c);photoStatus.classList.toggle('error',disabled);}
+  for(const id of ['photoInput','audioUploadInput','savePhotoBtn']){
+    const el=$(id);if(el)el.disabled=disabled;
+  }
+  for(const id of ['photoUploadLabel','audioUploadLabel']){
+    const el=$(id);if(!el)continue;
+    el.setAttribute?.('aria-disabled',String(disabled));
+    el.classList.toggle('media-disabled',disabled);
+  }
+  document.querySelectorAll('[data-media-entry]').forEach(el=>{
+    el.disabled=disabled;
+    el.setAttribute?.('aria-disabled',String(disabled));
+  });
+  if(disabled){
+    selectedPhoto=null;
+    $('photoPreview')?.classList.add('hidden');
+    $('savePhotoBtn')?.classList.add('hidden');
+  }
+  return !disabled;
+}
+async function loadMediaCapabilities(){
+  try{
+    const {r,j}=await api('/api/media/capabilities');
+    if(!r.ok||!j.capabilities){
+      setMediaCapability(null);
+      return false;
+    }
+    return setMediaCapability(j.capabilities);
+  }catch{
+    // Capability discovery is advisory for an already rendered archive. A
+    // transient read failure must not create an unhandled rejection; upload
+    // still performs a mandatory, authoritative capability check.
+    setMediaCapability(null);
+    return false;
+  }
+}
 async function mediaRequest(path,opt){
   const x=await api(path,opt);
   if(!x.r.ok)throw new Error(x.r.status===0?'连接中断，请重试，原文件和重试信息保留':x.j.error||'媒体请求失败');
@@ -17,10 +70,16 @@ async function loadMedia(){
 }
 function renderMedia(){
   $('archivePhotoCount').textContent=mediaItems.filter(m=>m.kind==='image'&&m.save_status==='saved').length;
-  $('archivePhotos').innerHTML=mediaItems.length?mediaItems.map(m=>`<article class="handoff-item" id="media-${m.media_id}"><b>${escapeHtml(m.original_filename||'媒体原件')}</b><p>${mediaLabel(m)}</p>${m.recognition?.is_mock?'<p class="status error">离线 Mock 演示模式：文字不是原件的真实识别结果</p>':''}${m.recognition?.error_message?`<p class="status error">${escapeHtml(m.recognition.error_message)}</p>`:''}<button class="outline" data-original="${m.media_id}" ${m.save_status!=='saved'?'disabled':''}>查看原件</button><button class="outline" data-recognize="${m.media_id}" ${m.save_status!=='saved'||m.recognition_status==='processing'?'disabled':''}>${m.recognition_status==='succeeded'?'查看识别文字':'识别 / 重试'}</button><div class="media-result"></div></article>`).join(''):'<p class="muted">还没有上传原件</p>';
+  $('archivePhotos').innerHTML=mediaItems.length?latestMediaFirst(mediaItems).map(m=>{
+    const terminalUnavailable=['failed','interrupted'].includes(m.recognition_status)&&!mediaRetryable(m);
+    const action=m.recognition_status==='succeeded'?'查看识别文字':m.recognition_status==='processing'?'识别处理中':terminalUnavailable?'':'识别 / 重试';
+    const actionButton=action?`<button class="outline" data-recognize="${m.media_id}" ${m.save_status!=='saved'||m.recognition_status==='processing'?'disabled':''}>${action}</button>`:'';
+    return `<article class="handoff-item" id="media-${m.media_id}"><b>${escapeHtml(m.original_filename||'媒体原件')}</b><p>${mediaLabel(m)}</p>${m.recognition?.is_mock?'<p class="status error">离线 Mock 演示模式：文字不是原件的真实识别结果</p>':''}${m.recognition?.error_message?`<p class="status error">${escapeHtml(m.recognition.error_message)}</p>`:''}${terminalUnavailable?'<p class="status error">该识别失败不可重试，原件仍可查看。</p>':''}<button class="outline" data-original="${m.media_id}" ${m.save_status!=='saved'?'disabled':''}>查看原件</button>${actionButton}<div class="media-result"></div></article>`;
+  }).join(''):'<p class="muted">还没有上传原件</p>';
   document.querySelectorAll('[data-original]').forEach(b=>b.onclick=()=>openOriginal(b.dataset.original));
   document.querySelectorAll('[data-recognize]').forEach(b=>b.onclick=()=>recognizeMedia(b.dataset.recognize));
 }
+function latestMediaFirst(items){return items.slice().sort((a,b)=>{const at=Date.parse(a.created_at||a.updated_at||'')||0;const bt=Date.parse(b.created_at||b.updated_at||'')||0;return bt-at||String(b.media_id||'').localeCompare(String(a.media_id||''))})}
 async function openOriginal(id){
   try{
     await health(); const r=await fetch(API+`/api/media/${id}/original`,{headers:{'X-Session-Token':token}});
@@ -39,6 +98,7 @@ async function uploadMedia(file,kind){
   try{
     if(!await health())throw new Error('服务未连接，文件仍在本页，请重试');
     const {capabilities:c}=await mediaRequest('/api/media/capabilities');
+    setMediaCapability(c);
     if(!c.enabled)throw new Error('当前实例未配置媒体资源保护边界，请负责人按启动说明配置');
     const type=(file.type||'').split(';')[0];
     if(!(kind==='audio'?c.audio_content_types:c.image_content_types).includes(type))throw new Error('当前服务不支持该文件格式，请保留原件并换用支持的格式');
@@ -89,6 +149,11 @@ async function recognizeMedia(id){
   recognitionBusy.add(id);
   try{
     let {media:m}=await mediaRequest('/api/media/'+id);
+    if(['failed','interrupted'].includes(m.recognition_status)&&!mediaRetryable(m)){
+      showRecognition(m);
+      mediaMessage('该识别失败不可重试；原件仍可查看');
+      return;
+    }
     if(m.recognition_status==='succeeded'&&!recognitionStillFinishing(m)){showRecognition(m);return;}
     if(!['processing','succeeded'].includes(m.recognition_status)){
       const opKey='elder_media_recognize_v1:'+id;
@@ -114,13 +179,18 @@ async function recognizeMedia(id){
   finally{recognitionBusy.delete(id);}
 }
 $('photoInput').onchange=e=>{
+  if(mediaCapabilities&&mediaCapabilities.enabled!==true)return;
   selectedPhoto=e.target.files?.[0];if(!selectedPhoto)return;
+  // Clearing the value after capturing the File permits selecting the same
+  // path again after a failed upload (the browser otherwise suppresses the
+  // second `change` event).
+  e.target.value='';
   const preview=$('photoPreview');preview.replaceChildren();const img=document.createElement('img');
   img.src=URL.createObjectURL(selectedPhoto);img.alt='待上传照片预览';img.onload=()=>URL.revokeObjectURL(img.src);preview.append(img);
   const note=document.createElement('p');note.textContent='仅预览，尚未上传或识别';preview.append(note);preview.classList.remove('hidden');$('savePhotoBtn').classList.remove('hidden');
 };
 $('savePhotoBtn').onclick=async()=>{if(uploadBusy)return;const m=await uploadMedia(selectedPhoto,'image');if(m){showView('archiveView');}};
-$('audioUploadInput').onchange=async e=>{const f=e.target.files?.[0];if(f){await uploadMedia(f,'audio');showView('archiveView');}};
+$('audioUploadInput').onchange=async e=>{if(mediaCapabilities&&mediaCapabilities.enabled!==true)return;const f=e.target.files?.[0];e.target.value='';if(f){await uploadMedia(f,'audio');showView('archiveView');}};
 async function savePendingRecording(){
   if(!pendingRecordingBlob||uploadBusy)return;
   const retry=$('retryVoiceUploadBtn');retry.disabled=true;
@@ -130,8 +200,12 @@ async function savePendingRecording(){
     retry.classList.add('hidden');$('voiceHint').textContent='原件已保存，可在看病资料核对识别文字';
     await recognizeMedia(media.media_id);
   }else{
-    retry.classList.remove('hidden');
-    $('voiceHint').textContent='录音尚未保存，请到看病资料重试上传，先不要刷新或关闭页面';
+    // A non-retryable capability/provider failure cannot be fixed by clicking
+    // this button.  Keep the original in memory, but avoid presenting a
+    // misleading retry affordance.
+    const retryable=mediaCapabilities?.enabled!==false;
+    retry.classList.toggle('hidden',!retryable);
+    $('voiceHint').textContent=retryable?'录音尚未保存，请到看病资料重试上传，先不要刷新或关闭页面':'录音尚未保存；当前媒体能力不可用，请恢复配置后再试';
   }
   retry.disabled=false;
 }
@@ -156,6 +230,7 @@ $('finishVoiceBtn').onclick=()=>{
 };
 $('retryVoiceUploadBtn').onclick=savePendingRecording;
 window.addEventListener('beforeunload',e=>{if(voiceUploadPending){e.preventDefault();e.returnValue='';}});
-$('refreshMediaBtn').onclick=async()=>{await health();await loadMedia();};
-document.querySelectorAll('[data-view="archiveView"]').forEach(b=>b.addEventListener('click',loadMedia));
-health().then(loadMedia);
+$('refreshMediaBtn').onclick=async()=>{await health();await loadMediaCapabilities();await loadMedia();};
+document.querySelectorAll('[data-view="archiveView"]').forEach(b=>b.addEventListener('click',async()=>{await loadMediaCapabilities();await loadMedia();}));
+setMediaCapability(null);
+health().then(async()=>{await loadMediaCapabilities();await loadMedia();});

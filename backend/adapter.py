@@ -13,6 +13,17 @@ SCHEMA_VERSION=SCHEMA['properties']['schema_version']['const']
 class AdapterError(RuntimeError):
  def __init__(self,message,*,code=None,status=None):
   super().__init__(message); self.code=code; self.status=status
+
+
+def _validation_error(message, code):
+ """Raise a bounded, non-content diagnostic for a local model contract check.
+
+ The message remains useful to local callers/tests, while the code is the only
+ value allowed to cross the HTTP/audit boundary.  Keep this separate from
+ provider transport codes: a rejected model draft must never be treated as a
+ successful or partially safe draft.
+ """
+ raise AdapterError(message, code=code)
 class Provider(Protocol):
  def complete_json(self,system_prompt:str,payload:Dict[str,Any])->Dict[str,Any]: ...
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -169,63 +180,63 @@ def _overreach(text):
   r'没有.{0,3}危险|没事|排除.{0,5}(?:心梗|脑梗|卒中)|替代医生',normalized))
 def validate_output(out,raw,payload=None):
  payload=payload or {'raw_text':raw}
- if Draft202012Validator is None: raise AdapterError('缺少 jsonschema 依赖，拒绝接受模型输出；请先安装并固定版本。')
+ if Draft202012Validator is None: _validation_error('缺少 jsonschema 依赖，拒绝接受模型输出；请先安装并固定版本。','model_schema_invalid')
  es=sorted(Draft202012Validator(SCHEMA).iter_errors(out),key=lambda e:list(e.path))
- if es: raise AdapterError('Schema 校验失败: '+es[0].message)
- if out.get('provenance_preserved') is not True or out.get('plan_change_allowed') is not False: raise AdapterError('安全字段不满足硬规则')
- if out.get('forbidden_actions'): raise AdapterError('模型报告禁行动，拒绝接受草稿。')
+ if es: _validation_error('Schema 校验失败: '+es[0].message,'model_schema_invalid')
+ if out.get('provenance_preserved') is not True or out.get('plan_change_allowed') is not False: _validation_error('安全字段不满足硬规则','model_safety_invalid')
+ if out.get('forbidden_actions'): _validation_error('模型报告禁行动，拒绝接受草稿。','model_safety_invalid')
  records=_source_records(payload)
  # Raw quotations remain attributed data. No ungrounded medical facts may enter
  # the summary/claims; follow-up language is restricted to neutral templates.
  summary=out['summary']
  if not _grounded_excerpt(summary,raw):
-  if _overreach(summary): raise AdapterError('模型输出触发越权拦截')
-  raise AdapterError('summary 必须保留当前完整原文，不得截取或改写。')
+  if _overreach(summary): _validation_error('模型输出触发越权拦截','model_safety_invalid')
+  _validation_error('summary 必须保留当前完整原文，不得截取或改写。','model_grounding_invalid')
  for question in out.get('follow_up_questions') or []:
   if question not in FOLLOW_UP_TEMPLATES:
-   if _overreach(question): raise AdapterError('模型输出触发越权拦截')
-   raise AdapterError('follow_up_questions 只能使用已审阅的中性模板。')
+   if _overreach(question): _validation_error('模型输出触发越权拦截','model_safety_invalid')
+   _validation_error('follow_up_questions 只能使用已审阅的中性模板。','model_followup_invalid')
  for claim in out.get('claims') or []:
   rid=claim['record_id']
-  if rid not in records: raise AdapterError('claim.record_id 不属于当前记录或后端原始历史证据。')
+  if rid not in records: _validation_error('claim.record_id 不属于当前记录或后端原始历史证据。','model_evidence_invalid')
   evidence=records[rid]
   if claim['source_kind']!=evidence['source_kind']:
-   raise AdapterError('claim.source_kind 必须与该 record_id 的原始来源一致。')
+   _validation_error('claim.source_kind 必须与该 record_id 的原始来源一致。','model_source_invalid')
   quote=claim['quote']
   if not _grounded_excerpt(quote,evidence['raw_text']):
-   raise AdapterError('claim.quote 必须保留该 record_id 的完整非空原文。')
+   _validation_error('claim.quote 必须保留该 record_id 的完整非空原文。','model_grounding_invalid')
   if claim['text']!=quote:
-   raise AdapterError('claim.text 必须等于已验证的 claim.quote，禁止补写事实。')
+   _validation_error('claim.text 必须等于已验证的 claim.quote，禁止补写事实。','model_grounding_invalid')
  if payload.get('record_id') not in {claim['record_id'] for claim in out['claims']}:
-  raise AdapterError('claims 必须包含当前记录的原始证据。')
+  _validation_error('claims 必须包含当前记录的原始证据。','model_evidence_invalid')
  conflict=out['conflict']; refs=conflict['record_refs']
  if len(refs)!=len(set(refs)) or any(ref not in records for ref in refs):
-  raise AdapterError('conflict.record_refs 必须为真实原始记录 ID 且不得重复。')
+  _validation_error('conflict.record_refs 必须为真实原始记录 ID 且不得重复。','model_conflict_invalid')
  if conflict['present']:
   if len(refs)<2 or payload.get('record_id') not in refs:
-   raise AdapterError('冲突必须引用当前记录及至少另一条原始记录。')
+   _validation_error('冲突必须引用当前记录及至少另一条原始记录。','model_conflict_invalid')
  elif refs:
-  raise AdapterError('conflict.present=false 时 record_refs 必须为空。')
+  _validation_error('conflict.present=false 时 record_refs 必须为空。','model_conflict_invalid')
  # 原文里的日期可能属于他人或假设事件，不能仅凭子串命中归给当前事件。
  # 当前 MVP 只沿用后端 supplied 时间；没有 supplied 时保留原话，不推断。
  occurred=out.get('time',{}).get('occurred'); supplied=payload.get('occurred_time')
  if occurred is not None and supplied is None:
-  raise AdapterError('time.occurred 没有后端提供的 occurred_time，必须为 null。')
+  _validation_error('time.occurred 没有后端提供的 occurred_time，必须为 null。','model_time_invalid')
  if occurred is None and out['time']['certainty'] in {'exact','range','daypart'}:
-  raise AdapterError('time.occurred 为 null 时不能声称确定的时间精度。')
+  _validation_error('time.occurred 为 null 时不能声称确定的时间精度。','model_time_invalid')
  if supplied is not None and occurred not in {supplied,str(supplied)}:
-  raise AdapterError('time.occurred 必须沿用后端提供的 occurred_time。')
+  _validation_error('time.occurred 必须沿用后端提供的 occurred_time。','model_time_invalid')
  recorded=out.get('time',{}).get('recorded'); server_recorded=payload.get('recorded_at')
  if server_recorded and recorded != server_recorded:
-  raise AdapterError('time.recorded 必须使用后端 recorded_at。')
- if danger(raw) and (out.get('escalation_level')!='emergency' or out.get('review_role')!='emergency_services'): raise AdapterError('危险输入必须升级为 emergency_services')
- if out.get('review_required') is not True: raise AdapterError('医疗交接输出必须 review_required=true')
- if out['review_role']=='none': raise AdapterError('待核实医疗记录必须指定复核角色。')
+  _validation_error('time.recorded 必须使用后端 recorded_at。','model_time_invalid')
+ if danger(raw) and (out.get('escalation_level')!='emergency' or out.get('review_role')!='emergency_services'): _validation_error('危险输入必须升级为 emergency_services','model_safety_invalid')
+ if out.get('review_required') is not True: _validation_error('医疗交接输出必须 review_required=true','model_safety_invalid')
+ if out['review_role']=='none': _validation_error('待核实医疗记录必须指定复核角色。','model_safety_invalid')
  if out['escalation_level']=='emergency' and out['review_role']!='emergency_services':
-  raise AdapterError('emergency 升级必须指定 emergency_services，不能绕过复核。')
- if (out.get('event_kind') in {'medication','instruction'} or medication_review_required(raw)) and out.get('review_role')!='clinician_or_pharmacist' and out.get('escalation_level')!='emergency': raise AdapterError('用药/医嘱事件必须交由 clinician_or_pharmacist 复核')
+  _validation_error('emergency 升级必须指定 emergency_services，不能绕过复核。','model_safety_invalid')
+ if (out.get('event_kind') in {'medication','instruction'} or medication_review_required(raw)) and out.get('review_role')!='clinician_or_pharmacist' and out.get('escalation_level')!='emergency': _validation_error('用药/医嘱事件必须交由 clinician_or_pharmacist 复核','model_safety_invalid')
  if scan_danger(raw).get('clinical_review_required') and out['review_role'] not in {'clinician_or_pharmacist','emergency_services'}:
-  raise AdapterError('测量候选须保留专业复核要求。')
+  _validation_error('测量候选须保留专业复核要求。','model_safety_invalid')
  return out
 def apply_safety_guard(out,raw):
  if not isinstance(out,dict): raise AdapterError('模型输出必须为 JSON 对象')

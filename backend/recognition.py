@@ -24,6 +24,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from html.parser import HTMLParser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Protocol
@@ -627,9 +628,54 @@ def _text_from_response(payload: Any) -> str:
             text = "".join(pieces)
         else:
             raise _safe_error("invalid_provider_response")
+    # Qwen OCR may return a fenced HTML fragment (for example, ``<p>药名</p>``)
+    # even when the request asks for plain text. Strip presentation markup at
+    # the provider boundary so the UI and event record contain readable OCR
+    # text while preserving the original media separately.
+    text = _clean_ocr_markup(text)
     if not text.strip():
         raise _safe_error("no_text_detected")
     return text
+
+
+class _OCRTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"script", "style"}:
+            self.skip_depth += 1
+        elif not self.skip_depth and self.parts and not self.parts[-1].endswith(("\n", " ")):
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"script", "style"} and self.skip_depth:
+            self.skip_depth -= 1
+        elif not self.skip_depth and tag.lower() in {"p", "div", "br", "li", "tr", "section", "article", "h1", "h2", "h3"}:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self.skip_depth:
+            self.parts.append(data)
+
+
+def _clean_ocr_markup(text: str) -> str:
+    value = text.strip()
+    fenced = re.fullmatch(r"```(?:html|text)?\s*\n?(.*?)\n?```", value, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        value = fenced.group(1).strip()
+    if "<" not in value or ">" not in value:
+        return value
+    parser = _OCRTextParser()
+    try:
+        parser.feed(value)
+        parser.close()
+    except Exception:
+        return value
+    cleaned = re.sub(r"[ \t]+", " ", "".join(parser.parts))
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
 
 
 def recognize_file(

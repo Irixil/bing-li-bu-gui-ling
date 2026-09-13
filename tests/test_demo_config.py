@@ -146,6 +146,50 @@ def test_per_kind_media_provider_overrides_global(tmp_path):
     assert not issues["语音识别（ASR）"]
 
 
+@pytest.mark.parametrize("prefix,section", [
+    ("MEDIA_ASR", "语音识别（ASR）"),
+    ("MEDIA_OCR", "照片识字（OCR）"),
+])
+@pytest.mark.parametrize("url", [
+    "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
+    "ws://localhost:8000/recognize",
+    "http://recognizer.example/recognize",
+    "https://user:password@recognizer.example/recognize",
+    "https://recognizer.example/recognize?private=value",
+    "https://recognizer.example/recognize?",
+    "https://recognizer.example/recognize#private-fragment",
+    "https://recognizer.example/recognize#",
+    "https://recognizer.example",
+])
+def test_openai_compatible_media_rejects_unsafe_or_non_endpoint_urls(
+    tmp_path, prefix, section, url
+):
+    env = complete_online_env(tmp_path)
+    env[prefix + "_URL"] = url
+    issues = demo_config.check_demo_configuration(env)
+    assert prefix + "_URL" in " ".join(issues[section])
+    assert "private" not in str(issues)
+
+
+@pytest.mark.parametrize("url", [
+    "http://localhost:8000/recognize",
+    "http://127.0.0.1:8000/recognize",
+    "http://[::1]:8000/recognize",
+])
+def test_openai_compatible_media_allows_http_loopback_for_local_testing(tmp_path, url):
+    env = complete_online_env(tmp_path)
+    env["MEDIA_OCR_URL"] = url
+    assert not any(demo_config.check_demo_configuration(env).values())
+
+
+def test_inherited_openai_compatible_ocr_rejects_streaming_asr_url(tmp_path):
+    env = complete_online_env(tmp_path)
+    env["MEDIA_OCR_URL"] = "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+    issues = demo_config.check_demo_configuration(env)
+    assert "MEDIA_OCR_URL" in " ".join(issues["照片识字（OCR）"])
+    assert not issues["语音识别（ASR）"]
+
+
 def test_whitespace_media_override_does_not_fall_back_or_pass_validation(tmp_path):
     env = complete_online_env(tmp_path)
     env["MEDIA_ASR_PROVIDER"] = "  "
