@@ -197,7 +197,7 @@ def test_supplied_occurred_and_recorded_times_must_be_preserved(payload):
 
 def test_prompt_and_input_audit_identify_exact_bytes(payload):
     result = organize_event(payload, MockProvider())
-    assert result['prompt_version'] == PROMPT_VERSION == 'prompt-v0.5'
+    assert result['prompt_version'] == PROMPT_VERSION == 'prompt-v0.6'
     assert result['schema_version'] == SCHEMA_VERSION
     assert result['prompt_sha256'] == PROMPT_SHA256 == hashlib.sha256(build_prompt().encode()).hexdigest()
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()

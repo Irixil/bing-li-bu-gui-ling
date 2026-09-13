@@ -56,6 +56,11 @@ function safetyHtml(s){
 }
 function safetyBanner(s){const b=$('dangerBanner');if(!b)return;if(s?.danger_detected){b.innerHTML=`<b>需要及时关注</b><br>${escapeHtml(s.danger_reminder||'记录中出现需要尽快请专业人员判断的描述，请联系当地急救服务或专业人员。')}`;b.classList.remove('hidden')}else b.classList.add('hidden')}
 function stateLabel(s){return ({inbox:'已保存，待整理',draft:'整理草稿，待核对',needs_review:'退回待整理',recorded:'已核对记录准确',superseded:'旧版本'})[s]||s}
+const EVENT_KIND_LABELS={symptom:'症状记录',measurement:'指标记录',medication:'用药记录',instruction:'医嘱或建议',document:'资料记录',question:'待核对问题',handoff:'交接记录',other:'其他记录'};
+const REVIEW_ROLE_LABELS={none:'暂未指定',family:'家属或照护者',clinician_or_pharmacist:'医生、护士或药师',emergency_services:'急救服务或专业人员'};
+const ESCALATION_LABELS={none:'常规核对',urgent:'尽快核对',emergency:'需要及时关注'};
+const CERTAINTY_LABELS={exact:'具体时间',range:'时间范围',daypart:'时段',relative:'原话中的相对时间',unknown:'时间未说明'};
+const SOURCE_KIND_LABELS={elder:'老人自述',family_observation:'家属观察',family_report:'家属转述',caregiver:'照护员记录',clinician_evidence:'医生或药师资料',document:'资料摘要',audio_transcript:'录音转写',system:'系统记录',unknown:'来源未标明'};
 function dateText(v){return v?new Date(v).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}
 function renderArchive(){
   const ebox=$('archiveEvents'); if(!ebox)return;
@@ -90,7 +95,25 @@ async function save(){
   } else {$('saveStatus').textContent='保存未确认，请重试。原输入保留，重试不会重复建记录。';$('saveStatus').className='status error';}
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function detailHtml(e,{organizeFailed=false}={}){const draft=e.draft?`<h3>${organizeFailed?'上次整理草稿（本次整理失败，未更新）':'整理草稿（请核对）'}</h3><div class="raw-box">${escapeHtml(JSON.stringify(e.draft,null,2))}</div>`:'';return `<div class="section-head"><h2>记录详情</h2><button class="view-btn" onclick="closeDetail()">关闭</button></div><div class="event-date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</div><h3>原话</h3><div class="raw-box">${escapeHtml(e.raw_text)}</div>${safetyHtml(e.local_safety)}${draft}<div class="actions">${['inbox','needs_review'].includes(e.state)||(organizeFailed&&e.state==='draft')?'<button class="primary" id="organizeBtn">整理记录</button>':''}${e.state==='draft'&&!organizeFailed?'<button class="primary" id="reviewBtn">我核对过了</button>':''}<button class="outline" id="reviseBtn">修订记录</button><button class="outline" id="historyBtn">查看历史</button></div><div id="organizeStatus" role="status"></div>${e.supersedes_id?`<button class="outline" onclick="showDetail('${e.supersedes_id}')">查看修订前原文</button>`:''}<div id="subview"></div>`}
+function listHtml(items,empty='暂无'){const values=Array.isArray(items)?items.filter(v=>typeof v==='string'&&v.trim()):[];return values.length?`<ul class="plain-list">${values.map(v=>`<li>${escapeHtml(v)}</li>`).join('')}</ul>`:`<p class="muted">${empty}</p>`}
+function draftHtml(e,{organizeFailed=false}={}){
+  const d=e.draft;if(!d||typeof d!=='object')return '';
+  const time=d.time&&typeof d.time==='object'?d.time:{};
+  const occurred=time.occurred?escapeHtml(dateText(time.occurred)||String(time.occurred)):'未提供具体日期';
+  const certainty=CERTAINTY_LABELS[time.certainty]||'时间未说明';
+  const role=REVIEW_ROLE_LABELS[d.review_role]||'需要人工核对';
+  const level=ESCALATION_LABELS[d.escalation_level]||'需要人工核对';
+  const extra=Object.entries(d).filter(([key,value])=>!['schema_version','event_kind','summary','time','claims','review_required','review_role','escalation_level','conflict','provenance_preserved','plan_change_allowed','follow_up_questions','forbidden_actions'].includes(key)&&typeof value==='string'&&value.trim()).map(([,value])=>value);
+  return `<section class="draft-card"><h3>${organizeFailed?'上次整理草稿（本次整理失败，未更新）':'整理结果（请核对）'}</h3><p class="draft-note">这是结构化草稿，不是诊断，也不会自动改变用药方案。</p><div class="fact-grid"><div><span>记录类型</span><b>${escapeHtml(EVENT_KIND_LABELS[d.event_kind]||'待人工判断')}</b></div><div><span>发生时间</span><b>${occurred}<small>${escapeHtml(certainty)}</small></b></div><div><span>需要谁核对</span><b>${escapeHtml(role)}</b></div><div><span>关注级别</span><b>${escapeHtml(level)}</b></div></div><div class="draft-source"><b>原话已完整保留</b><span>AI 只做分类和归档，没有改写原文。</span></div>${d.follow_up_questions?.length?`<h4>待核对问题</h4>${listHtml(d.follow_up_questions)}`:''}${d.conflict?.present?`<p class="status error">发现不同记录，需要把双方原话一起交给人工核对。</p>`:''}${extra.length?`<h4>补充说明</h4>${listHtml(extra)}`:''}</section>`;
+}
+function relatedHistoryHtml(e,records){
+  const ids=Array.isArray(e.related_record_ids)?e.related_record_ids:[];
+  if(!ids.length)return '';
+  if(!records)return '<section class="related-history"><h3>相关历史线索</h3><p class="muted">正在读取已关联的历史原话…</p></section>';
+  const rows=records.length?records.map(item=>`<article class="history-source"><b>${escapeHtml(SOURCE_KIND_LABELS[item.source_kind]||'历史记录')} · ${dateText(item.recorded_at)}</b><p>${escapeHtml(item.raw_text)}</p></article>`).join(''):'<p class="muted">未能读取关联历史原话；不会用摘要替代原文。</p>';
+  return `<section class="related-history"><h3>相关历史线索（需要核对）</h3><p class="draft-note">以下内容来自已关联的原始记录，只用于提出核对问题，不代表当前症状已经找到病因。</p>${rows}<p class="related-question">请由老人、家属或医生核对：这次记录是否与以上历史有关？如不确定，以医生判断为准。</p></section>`;
+}
+function detailHtml(e,{organizeFailed=false,relatedRecords=null}={}){const draft=draftHtml(e,{organizeFailed});return `<div class="section-head"><h2>记录详情</h2><button class="view-btn" onclick="closeDetail()">关闭</button></div><div class="event-date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</div><h3>原话</h3><div class="raw-box">${escapeHtml(e.raw_text)}</div>${safetyHtml(e.local_safety)}${draft}${relatedHistoryHtml(e,relatedRecords)}<div class="actions">${['inbox','needs_review'].includes(e.state)||(organizeFailed&&e.state==='draft')?'<button class="primary" id="organizeBtn">整理记录</button>':''}${e.state==='draft'&&!organizeFailed?'<button class="primary" id="reviewBtn">我核对过了</button>':''}<button class="outline" id="reviseBtn">修订记录</button><button class="outline" id="historyBtn">查看历史</button></div><div id="organizeStatus" role="status"></div>${e.supersedes_id?`<button class="outline" onclick="showDetail('${e.supersedes_id}')">查看修订前原文</button>`:''}<div id="subview"></div>`}
 function renderDetail(e,options={}){
   current=e;safetyBanner(e.local_safety);
   const d=$('detail');d.classList.remove('hidden');d.innerHTML=detailHtml(e,options);d.scrollIntoView({behavior:'smooth'});
@@ -98,7 +121,8 @@ function renderDetail(e,options={}){
   if($('reviewBtn'))$('reviewBtn').onclick=()=>review(e);
   $('reviseBtn').onclick=()=>revise(e);$('historyBtn').onclick=()=>historyView(e);
 }
-async function showDetail(id){const {r,j}=await api('/api/events/'+id);if(!r.ok){toast('详情读取失败，请重试');return;}renderDetail(j.event)}
+async function loadRelatedHistory(e){const ids=Array.isArray(e.related_record_ids)?e.related_record_ids.slice(0,10):[];if(!ids.length)return;const records=[];for(const id of ids){const x=await api('/api/events/'+encodeURIComponent(id));if(x.r.ok&&x.j.event)records.push(x.j.event)}if(current?.record_id===e.record_id)renderDetail(e,{relatedRecords:records})}
+async function showDetail(id){const {r,j}=await api('/api/events/'+id);if(!r.ok){toast('详情读取失败，请重试');return;}renderDetail(j.event);loadRelatedHistory(j.event)}
 function closeDetail(){clearRecordPanels()}
 async function organize(e){
   const b=$('organizeBtn');if(!b||b.disabled)return;b.disabled=true;b.textContent='整理中…';
@@ -108,6 +132,7 @@ async function organize(e){
   if(x.j.event||x.r.status===422){
     const saved=x.j.event||e;
     renderDetail({...saved,local_safety:{...saved.local_safety,...x.j.local_safety}},{organizeFailed:x.r.status===422});
+    loadRelatedHistory(saved);
   }
   if(x.r.status===422){$('organizeStatus').textContent='原话已保存，AI 整理失败：'+(x.j.failure_reason||'请稍后重试');toast('原话已保存，整理暂时失败');}
   else if(x.r.ok&&x.j.event)toast('整理完成，请核对');

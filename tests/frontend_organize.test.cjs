@@ -191,3 +191,24 @@ test('successful revision displays its returned new record even if list refresh 
   assert.match(h.element('detail').innerHTML, /查看修订前原文/);
   assert.equal(h.run('current.record_id'), 'rec_revision');
 });
+
+test('organized detail renders a readable Chinese card instead of raw model JSON', async () => {
+  const readable = {
+    schema_version: 'event-v0.3', event_kind: 'symptom',
+    summary: '今天脚疼，还有点红，走路的时候更疼。',
+    time: { occurred: null, recorded: '2026-09-13T08:00:00Z', certainty: 'relative' },
+    claims: [{ text: '今天脚疼，还有点红，走路的时候更疼。', source_kind: 'elder', record_id: 'rec_test', quote: '今天脚疼，还有点红，走路的时候更疼。' }],
+    review_required: true, review_role: 'clinician_or_pharmacist', escalation_level: 'none',
+    conflict: { present: false, record_refs: [] }, provenance_preserved: true,
+    plan_change_allowed: false, follow_up_questions: ['请补充发生时间和可核验证据。'], forbidden_actions: [],
+  };
+  const h = await harness(event({ raw_text: readable.raw_text, state: 'draft', version: 2, draft: readable }));
+  const html = h.element('detail').innerHTML;
+  assert.match(html, /记录类型/);
+  assert.match(html, /症状记录/);
+  assert.match(html, /需要谁核对/);
+  assert.match(html, /医生、护士或药师/);
+  assert.match(html, /待核对问题/);
+  assert.doesNotMatch(html, /"schema_version"/);
+  assert.doesNotMatch(html, /"claims"/);
+});
