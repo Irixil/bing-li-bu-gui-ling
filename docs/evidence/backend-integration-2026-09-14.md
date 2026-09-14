@@ -4,7 +4,7 @@
 
 - 分支：codex/backend-integration-2026-09-14
 - 基线：feaf18204f29a674f7c9076920ffb01a804c2e59
-- 当前结果先在未提交工作树运行；提交后必须在干净提交上复跑并补充精确提交号。
+- 受测提交：16c56cad71e84b888320a7992752e8ac6d0f95e6；复跑时工作树干净。
 - 环境：macOS arm64，Python 3.12.13，pytest 8.4.2，Node 24.19.0，npm 11.17.0。
 - 没有读取 .env 或凭据；没有调用真实模型；没有私人医疗资料。
 
@@ -18,7 +18,7 @@
 
 结果：通过，provider=mock，1 位公开患者、3 段改编资料；每段原文可查询、幂等检查通过、记录状态为 recorded、历史各 3 条；危险提醒在确认后保留，数据库重新打开后可读。
 
-临时报告 SHA-256：8cc4c9bf71b785c9fdcb69e689451dc54361537e9f3300afb8dd372d86c751fc。该临时文件不含私人资料，但没有作为新的真实模型证据提交。
+干净提交复跑结果：通过，provider=mock，1 位公开患者、3 段改编资料。临时报告 SHA-256：e710abc26e8a716de2f35abd737574375881eb32d04d8bd7e245556fe3dacc91。该临时文件不含私人资料，但没有作为新的真实模型证据提交。
 
 ## 测试
 
@@ -28,7 +28,7 @@
 
 命令：.venv312/bin/python -m pytest -q
 
-结果：728 passed, 1 skipped in 70.28s。唯一跳过为 tests/test_dashscope_streaming.py 的真实 ffmpeg 转码检查；本机没有 ffmpeg。总收集 729 项，其中新增 TEXT-RETRY-01 已通过。
+提交前结果：728 passed, 1 skipped in 70.28s。干净提交 16c56ca 复跑结果：728 passed, 1 skipped in 69.74s。唯一跳过为 tests/test_dashscope_streaming.py 的真实 ffmpeg 转码检查；本机没有 ffmpeg。总收集 729 项。新增 TEXT-RETRY-01 另行复跑为 1 passed in 0.56s。
 
 命令：npm run check:contracts；node --check frontend/app.js；node --check frontend/media.js；git diff --check
 

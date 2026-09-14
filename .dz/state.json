@@ -6,18 +6,18 @@
     "language": "zh"
   },
   "run": {
-    "status": "active",
+    "status": "paused",
     "product_verdict": "not_assessed",
     "stage": "discovery",
-    "next_action": "提交选择性整合，随后在干净提交上复跑完整后端回归并补充精确提交证据",
+    "next_action": null,
     "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
     "blocker": null,
     "blocker_kind": null,
-    "resume_when": null,
+    "resume_when": "需要修复浏览器 WebM、补装 ffmpeg、启动 P1、补齐正式产品约定或继续发布整合时",
     "finish_reason": null,
-    "updated_at": "2026-09-14T10:27:35+00:00"
+    "updated_at": "2026-09-14T10:31:16+00:00"
   },
   "decisions": {
     "intent": {
@@ -139,6 +139,23 @@
       "prevention": null,
       "created_at": "2026-09-14T09:48:58+00:00",
       "updated_at": "2026-09-14T09:50:07+00:00"
+    },
+    {
+      "id": "ASR-WEBM-REAL",
+      "title": "浏览器真实 WebM 识别仍有协议错误",
+      "kind": "implementation_gap",
+      "status": "deferred",
+      "source": "feaf182 的 docs/evidence/online-selftest-2026-09-13.md 与 online-config-2026-09-13.md",
+      "expected": "浏览器保存的 WebM 原件可被所选真实 ASR 识别，失败时仍保留原件和明确状态",
+      "actual": "一次真实浏览器 WebM 请求返回协议错误；原件保存与失败展示正常，仓库合成 WAV 的真实识别通过",
+      "impact": "不能宣称浏览器录音通用真实识别完成；本后端整合不修改 frontend 或伪造成功",
+      "route": "work_item",
+      "work_item_id": null,
+      "evidence_ids": [],
+      "resolution": "本轮保持 feaf182 行为并保留失败证据；后续由媒体/前端联调在受控浏览器与 ffmpeg 环境修复并复测",
+      "prevention": null,
+      "created_at": "2026-09-14T10:30:59+00:00",
+      "updated_at": "2026-09-14T10:30:59+00:00"
     }
   ]
 }
