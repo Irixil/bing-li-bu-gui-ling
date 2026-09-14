@@ -1,6 +1,6 @@
 # 前后端接口合同 v0.4
 
-本页描述现有文本接口，以及本轮已经由 `backend/server.py` 和 HTTP 专项测试固定的媒体接口。启动已经连接本地文件存储、SQLite 媒体状态和 B 的识别模块；需显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 才启用离线 Mock，未配置 provider 不会静默回退；真实 ASR/OCR、浏览器、手机和生产部署仍未验证。
+本页描述现有文本接口，以及已经由 `backend/server.py` 和 HTTP 专项测试固定的媒体接口。启动已经连接本地文件存储、SQLite 媒体状态和识别模块；需显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 才启用离线 Mock，未配置 provider 不会静默回退。`feaf182` 已用仓库合成 WAV/PNG 完成一次真实 ASR/OCR 全链路验收；这不证明浏览器 WebM、手机、真实患者、临床准确率或生产部署可用。
 
 服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。JSON 写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）；媒体上传按下文使用 `multipart/form-data`。文本记录只有创建要求 `Idempotency-Key`；媒体创建、分片、完成和识别启动都要求各自的 `Idempotency-Key`。服务重启后重新获取 token。
 
@@ -87,7 +87,7 @@ C 部分修订：成功响应及 `event.result_meta` 增加 `model_id`、`prompt
 
 ## 媒体 HTTP 适配器
 
-当前可验证范围包括默认本地后端的文件存储、SQLite 状态、识别编排，以及 HTTP 的 session/Origin 保护、上传与分片重放、原件读取与 Range、异步识别入口。HTTP 专项测试仍使用替身隔离解析层，默认后端另有组合测试；真实 ASR/OCR、浏览器和手机仍未验收。
+当前可验证范围包括默认本地后端的文件存储、SQLite 状态、识别编排，以及 HTTP 的 session/Origin 保护、上传与分片重放、原件读取与 Range、异步识别入口。HTTP 专项测试使用替身隔离解析层，默认后端另有组合测试；合成 WAV/PNG 的真实服务链路已有绑定 `feaf182` 的历史证据，浏览器生成的一次 WebM 真实识别失败且原件被保留，手机与生产仍未验收。
 
 所有媒体写请求带 `X-Session-Token` 和 `Idempotency-Key`；带 JSON 正文的请求使用 `application/json`，上传步骤使用 `multipart/form-data`。创建上传、上传分片和完成上传都会持久化幂等信息并检查冲突；同一次可重试请求应复用同一键和完全相同的内容，下一步操作使用新键。
 
@@ -171,7 +171,7 @@ link_status:        not_linked | pending | linked | link_failed
 
 `actor_name` 可选，省略时后端使用“本地用户”。新识别任务入口返回 `202 {ok:true,accepted:true,attempt_id,media}`；同一请求重放、已有处理中任务仍返回 `202` 和同一 `attempt_id`；已有成功结果的重放返回 `200`，不重新识别。`202` 只表示任务已经接受或处于处理中，**不表示识别成功**。前端随后轮询媒体详情的 `recognition_status`，不能等待这个 POST 返回识别全文。
 
-识别结果若含 `recognition.is_mock:true`，页面必须明确写“离线 Mock 演示模式”，不能冒充真实 ASR/OCR。Mock 不证明音频或图片内容被真实识别。本轮尚未验证真实 ASR/OCR、浏览器和手机；失败后原件仍应通过原件接口可读。`POST /api/media/{media_id}/link` 可复用已经保存的成功初稿恢复 Event 关联，不会再次调用识别服务。
+识别结果若含 `recognition.is_mock:true`，页面必须明确写“离线 Mock 演示模式”，不能冒充真实 ASR/OCR。Mock 不证明音频或图片内容被真实识别。合成 WAV/PNG 的一次真实服务链路通过也不能替代浏览器 WebM、手机、真实患者或通用准确率验收；任何识别失败都必须保留可读取原件。`POST /api/media/{media_id}/link` 可复用已经保存的成功初稿恢复 Event 关联，不会再次调用识别服务。
 
 ### `POST /api/media/{media_id}/link` 恢复 Event 关联
 

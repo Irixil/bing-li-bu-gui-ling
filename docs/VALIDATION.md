@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-09-14 后端选择性整合
+
+当前分支从 `feaf182` 创建，只选择性纳入任务 D 的公开病例登记、QA 结构和失败后重试用例，并把复杂医学图片保留为 MVP 外 P1；没有用旧分支覆盖 `backend/recognition.py`，也没有修改 `frontend/**`。
+
+本机 `python3.12 scripts/validate_task_d.py` 已通过，确认 3 条登记与运行夹具一致、20 个 QA 用例编号完整、P1 边界存在；`py_compile` 与 `git diff --check` 通过。这些是静态和资料检查，不等于运行回归。
+
+用户确认后已在 `.venv312` 安装锁定依赖。任务 D、API、安全、备份和进程重启专项为 232 项通过；完整 Python 回归为 728 项通过、1 项因本机缺少可选 `ffmpeg` 跳过；TypeScript 合同与前端脚本语法检查通过。公开病例 Mock 演示为 1 位患者、3 段改编资料通过。默认 40 条 Mock 只通过结构 40/40 和指定危险 6/6，仍有 54 项语义断言失败、146 项未自动评估；11 条 C 严格夹具通过 121 项自动断言，29 项需人工复核。当前不得把这些结果写成真实模型、临床或生产验证。详细盘点见 [本机资源记录](evidence/backend-local-inventory-2026-09-14.md)。
+
 目标版本：集成候选 `codex/integration-demo-version`，Python 3.12；文本整理使用 `MODEL_PROVIDER=mock`，媒体识别需显式设置 provider。报告文件在 `docs/evidence/`。合并后需在本候选上重新执行完整测试、Mock 评测和演示，并补充前端浏览器验收记录。
 
 ## C 与共享 main 整合验收（2026-09-12 最新）

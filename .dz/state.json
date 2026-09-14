@@ -6,18 +6,18 @@
     "language": "zh"
   },
   "run": {
-    "status": "waiting_user",
+    "status": "active",
     "product_verdict": "not_assessed",
     "stage": "discovery",
-    "next_action": "两份任务包与接口草案已编写并通过文档链接、差异及账本检查；完成 GitHub 发布后，队友从 docs/team/README.md 认领 A 或 B，核对仓库并确认各自路线；正式媒体合同与服务能力待收口，录音提醒后暂停可续录的参数待真机验证",
-    "waiting_for": "两位队友认领并在各自 Codex 任务确认执行路线；项目负责人和前端确认录音参数及媒体限制，独立准备工作可继续",
+    "next_action": "提交选择性整合，随后在干净提交上复跑完整后端回归并补充精确提交证据",
+    "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
     "blocker": null,
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-12T08:26:14+00:00"
+    "updated_at": "2026-09-14T10:27:35+00:00"
   },
   "decisions": {
     "intent": {
@@ -76,7 +76,7 @@
       "id": "MVP-HANDOFF",
       "title": "后端已验证，整个比赛网页仍需前端与真实模型联调",
       "kind": "plan_gap",
-      "status": "open",
+      "status": "dismissed",
       "source": "用户明确要求、当前代码、docs/evidence/backend-tests.xml 与公开病例 HTTP 演示报告",
       "expected": "明天老人端网页可以跑通完整演示，五人按统一接口协作",
       "actual": "71项后端测试、40条合成回归、1份公开病例3段资料及进程重启通过；前端未开发、真实模型未测；五人分工保持建议稿",
@@ -84,16 +84,16 @@
       "route": "plan",
       "work_item_id": null,
       "evidence_ids": [],
-      "resolution": null,
+      "resolution": "该 2026-09-12 状态已被 feaf182 后续集成与真实合成资料验收取代；当前未验证项由后端 QA 矩阵单独保留",
       "prevention": null,
       "created_at": "2026-09-12T05:02:11+00:00",
-      "updated_at": "2026-09-12T05:02:11+00:00"
+      "updated_at": "2026-09-14T09:48:57+00:00"
     },
     {
       "id": "MEDIA-TEAM",
       "title": "两人媒体后端任务包已编写，真实功能待实施与联合验收",
       "kind": "plan_gap",
-      "status": "open",
+      "status": "dismissed",
       "source": "本任务用户明确要求将两位队友的工作需求提交 GitHub；前端任务最新确认提醒后无回应暂停且可续录；docs/team/README.md",
       "expected": "队友克隆仓库并在 Codex 认领 A 或 B 后能理解任务、确认路线、独立开发、通过 PR 合并并完成联合验收",
       "actual": "文档交付包含两份任务单、接口草案、分支合并流程及 PR 模板；媒体功能仍未实现；60 秒要求撤回，暂停行为已确认但时间与检测方式待真机确定；本次未新增产品 accepted 或 verified 记录",
@@ -101,10 +101,44 @@
       "route": "plan",
       "work_item_id": null,
       "evidence_ids": [],
-      "resolution": null,
+      "resolution": "A/B 媒体保存与识别接线已汇总到 feaf182；旧协作包的未实现状态不再作为当前问题",
       "prevention": null,
       "created_at": "2026-09-12T08:24:47+00:00",
-      "updated_at": "2026-09-12T08:24:47+00:00"
+      "updated_at": "2026-09-14T09:48:57+00:00"
+    },
+    {
+      "id": "BACKEND-INTEGRATION-ENV",
+      "title": "当前后端 worktree 缺少离线回归依赖",
+      "kind": "plan_gap",
+      "status": "dismissed",
+      "source": "2026-09-14 本机盘点与 pip 安装尝试",
+      "expected": "按 requirements-dev.txt 重建 Python 3.12 环境并运行专项及完整后端回归",
+      "actual": "已创建隔离虚拟环境，但依赖下载因网络审批拒绝而未完成；pytest、jsonschema、websockets 不可用，ffmpeg 未发现",
+      "impact": "静态校验可以继续，但新增测试和完整后端回归不能声称通过",
+      "route": "plan",
+      "work_item_id": null,
+      "evidence_ids": [],
+      "resolution": "用户确认后锁定依赖已安装；专项 232 项、完整 Python 728 项通过，1 项可选 ffmpeg 转码检查跳过并已保留为环境限制",
+      "prevention": null,
+      "created_at": "2026-09-14T09:48:57+00:00",
+      "updated_at": "2026-09-14T10:27:34+00:00"
+    },
+    {
+      "id": "P1-COMPLEX-IMAGE",
+      "title": "复杂医学图片识别保留为 MVP 外待办",
+      "kind": "new_idea",
+      "status": "deferred",
+      "source": "origin/feat/p1-complex-image-recognition@38d9e48 与用户 2026-09-14 整合要求",
+      "expected": "保留原图和明确不支持自动解读的边界，未经选择不新增接口、模型或医学结论",
+      "actual": "P1 需求文档已选择性纳入，本轮没有实现复杂图像识别或修改 frontend",
+      "impact": "后续若启动需重新决定服务、资料外传、人工核对、证据和接口合同",
+      "route": "backlog",
+      "work_item_id": null,
+      "evidence_ids": [],
+      "resolution": "用户要求本轮只保留可见待办；未经新的产品选择不实现复杂图片识别",
+      "prevention": null,
+      "created_at": "2026-09-14T09:48:58+00:00",
+      "updated_at": "2026-09-14T09:50:07+00:00"
     }
   ]
 }

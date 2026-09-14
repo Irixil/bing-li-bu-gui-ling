@@ -1,12 +1,12 @@
 # B 任务交接：语音转文字与照片识字
 
-状态：识别模块已完成并由 A 侧媒体后端接入；真实 ASR/OCR 成功证据尚未验证。媒体上传、数据库状态、Event 关联和 HTTP 合同已在 `fix/backend-api@36f3b67` 组装并通过本地自动化回归。
+状态：识别模块已由媒体后端接入并汇总到 `feaf182`。仓库合成 WAV/PNG 已完成一次真实 ASR/OCR 全链路；浏览器真实 WebM 曾返回协议错误但原件保留。手机、真实患者、通用格式、临床和生产仍未验证。
 
 ## 本次交付
 
 - `backend/recognition.py`：统一的 `recognize_file(...)` 识别接缝。
-- `tests/test_recognition.py`：17 项离线行为测试，覆盖 Mock、格式／文件校验、原件不变、大小限制、供应商错误分类、空结果、非法响应、响应大小边界和安全文件名。
-- `docs/evidence/media-b/README.md`：真实服务证据缺口和补证要求。
+- `tests/test_recognition.py` 与 `tests/test_dashscope_streaming.py`：覆盖 Mock、格式／文件校验、原件不变、大小限制、供应商错误分类、响应边界、安全文件名、WSS 地址限制、转码、超时和临时文件清理。
+- `docs/evidence/media-b/README.md` 保留旧缺口；当前真实链路见 `docs/evidence/online-selftest-2026-09-13.md`。
 
 本模块不写数据库、不修改原件、不创建 Event、不启动 HTTP 处理器，也不调用现有文本整理 `backend/adapter.py`。
 
@@ -48,12 +48,13 @@ except RecognitionError as error:
 
 ## Provider 与配置
 
-当前实现提供两种显式模式：
+当前实现提供三种显式模式：
 
 | 模式 | 选择方式 | 结果含义 |
 |---|---|---|
 | Mock | 调用时传 `provider="mock"` | `is_mock: true`，只用于离线接线，不代表真实识别质量 |
 | OpenAI-compatible | `provider="openai_compatible"` | 需要分别配置 ASR/OCR 的 URL、模型和密钥；未配置返回 `provider_not_configured`，不会回退 Mock |
+| DashScope streaming | 音频使用 `provider="dashscope_streaming"` | 只接受实现白名单内的 WSS 推理地址；需要 `ffmpeg` 把完整原件副本转为 PCM |
 
 真实模式的配置变量名称：
 
@@ -61,7 +62,7 @@ except RecognitionError as error:
 - 图片：`MEDIA_OCR_URL`、`MEDIA_OCR_MODEL`、`MEDIA_OCR_API_KEY`
 - 可选：`MEDIA_RECOGNITION_API_KEY` 作为两者的共同密钥；`MEDIA_RECOGNITION_TIMEOUT_SECONDS`；`MEDIA_RECOGNITION_MAX_RESPONSE_BYTES`
 
-密钥只存在运行环境的 `.env` 或密钥管理器中，不进 Git、日志、测试报告或响应消息。当前仓库没有新增运行依赖；模块使用 Python 3.12 标准库。
+密钥只存在运行环境的 `.env` 或密钥管理器中，不进 Git、日志、测试报告或响应消息。项目使用 Python 3.12；DashScope streaming 依赖锁定的 `websockets`，真实转码还需要本机 `ffmpeg`。
 
 OpenAI-compatible 适配器约定：音频向配置的 URL 发 multipart 请求，字段为 `model` 和 `file`；图片向配置的 URL 发 JSON，对图片使用 data URL，并要求模型逐字识别、不补写、不纠错、不推测。具体供应商是否支持这些形状、语言、格式、时长、费用和数据留存，必须由 A/C/E 在授权后单独实测，不得由本模块推断。
 
@@ -86,17 +87,17 @@ OpenAI-compatible 适配器约定：音频向配置的 URL 发 multipart 请求�
 
 已验证：
 
-- `uv run --python 3.12 --with-requirements requirements-dev.txt python -m pytest -q tests/test_recognition.py`：17 项通过。
+- `feaf182` 的完整 Python 回归记录为 728 项通过；当前整合分支必须重新运行后才能形成新证明。
 - 音频和图片走同一个公开函数；Mock 与真实模式结果明确区分。
 - 识别失败不会写原件；原件字节和文件修改时间在测试中保持不变。
 - 供应商超时、网络不可用、鉴权、限流、非法响应和空文字都有稳定分类。
-- 全仓库当前回归：`220 passed`；其中包含识别模块和媒体后端测试。
+- 合成 WAV/PNG 的真实 HTTP 全链路记录为 `156/156`，三类 provider 均标记为非 Mock；输入、提交与限制见在线自测证据。
 
 未验证：
 
-- 没有合法的 ASR/OCR 服务凭据、授权样例或可公开的脱敏真实媒体，因此真实中文录音成功、清晰印刷照片成功、真实超时和真实失败均不能写成已完成。
+- 本后端 worktree 没有 `.env`，因此本轮尚未重新执行真实在线调用；不能把 `feaf182` 的历史在线结果写成当前机器复跑。
 - 具体服务的语言、编码、时长、大小、像素、费用、数据传输和保留策略尚未冻结。
-- 未验证手写字、复杂版式、方言、噪声环境、静音检测和转码质量。
+- 未验证手写字、复杂版式、方言、噪声环境、手机、生产和临床准确率；浏览器真实 WebM 仍有一条协议错误记录。
 
 ## A 接入顺序
 
