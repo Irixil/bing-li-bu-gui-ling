@@ -141,7 +141,7 @@ curl http://127.0.0.1:18768/api/media/capabilities
 
 ## 比赛演示启动和自测
 
-复制 `.env.example` 为本地 `.env`，填写自己的真实服务配置，安装依赖及 FFmpeg 后：
+复制 `.env.example` 为本地 `.env`，填写自己的真实服务配置并安装项目依赖后：
 
 ```bash
 python -m scripts.start_demo --check-config
@@ -149,3 +149,4 @@ python -m scripts.start_demo
 ```
 
 访问 http://localhost:18768/。默认缺配置拒绝启动，不静默降级 Mock。完整可复制命令、三轮真实 API 自测和逐按钮验收见 [DEMO-SELFTEST.md](docs/DEMO-SELFTEST.md)。仅离线回归时显式运行 `python -m scripts.start_demo --offline`，不能把它算作在线验收。
+项目依赖会在系统没有 `ffmpeg` 命令时提供固定版本的备用二进制，供浏览器 WebM 录音转 PCM；已安装的系统 FFmpeg 仍优先使用。

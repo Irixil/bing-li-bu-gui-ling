@@ -430,6 +430,10 @@ def test_real_cli_invalid_config_never_prints_credential_text(tmp_path, monkeypa
     ('model_redirect_rejected', 302), ('model_timeout', None),
     ('model_network_error', None), ('model_response_invalid', None),
     ('model_response_too_large', None), ('model_output_truncated', None),
+    ('model_schema_invalid', None), ('model_safety_invalid', None),
+    ('model_grounding_invalid', None), ('model_followup_invalid', None),
+    ('model_evidence_invalid', None), ('model_source_invalid', None),
+    ('model_conflict_invalid', None), ('model_time_invalid', None),
 ])
 def test_report_retains_allowlisted_adapter_error_codes_and_http_status(code, status):
     from backend.adapter import AdapterError

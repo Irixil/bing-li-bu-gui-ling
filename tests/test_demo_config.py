@@ -205,7 +205,7 @@ def test_streaming_asr_uses_exact_explicit_endpoint_model_and_key(tmp_path, monk
     env.update(MEDIA_ASR_PROVIDER="dashscope_streaming", MEDIA_ASR_URL="wss://dashscope.aliyuncs.com/api-ws/v1/inference", MEDIA_ASR_MODEL="qwen-audio-3.0-asr-flash-streaming", DASHSCOPE_API_KEY="private-dashscope-value")
     del env["MEDIA_ASR_API_KEY"]
     monkeypatch.setattr(demo_config.importlib.util, "find_spec", lambda name: object())
-    monkeypatch.setattr(demo_config.shutil, "which", lambda name: "/test/ffmpeg")
+    monkeypatch.setattr("backend.recognition.ffmpeg_executable", lambda: "/test/ffmpeg")
     assert not any(demo_config.check_demo_configuration(env).values())
     assert env["MEDIA_ASR_MODEL"] == "qwen-audio-3.0-asr-flash-streaming"
     env["MEDIA_ASR_URL"] = "https://secret.example/secret-path"
@@ -219,7 +219,7 @@ def test_streaming_asr_reports_missing_runtime_dependencies(tmp_path, monkeypatc
     env = complete_online_env(tmp_path)
     env.update(MEDIA_ASR_PROVIDER="dashscope_streaming", MEDIA_ASR_URL="wss://dashscope.aliyuncs.com/api-ws/v1/inference")
     monkeypatch.setattr(demo_config.importlib.util, "find_spec", lambda name: None)
-    monkeypatch.setattr(demo_config.shutil, "which", lambda name: None)
+    monkeypatch.setattr("backend.recognition.ffmpeg_executable", lambda: None)
     messages = " ".join(demo_config.check_demo_configuration(env)["语音识别（ASR）"])
     assert "websockets" in messages and "ffmpeg" in messages
 

@@ -92,6 +92,25 @@ _DEFAULT_RESPONSE_BYTES = 2 * 1024 * 1024
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 
 
+def ffmpeg_executable() -> str | None:
+    """Use a system FFmpeg first, then the pinned project runtime fallback."""
+
+    executable = shutil.which("ffmpeg")
+    if executable:
+        return executable
+    try:
+        from imageio_ffmpeg import get_ffmpeg_exe
+
+        executable = get_ffmpeg_exe()
+    except (ImportError, OSError, RuntimeError, ValueError):
+        return None
+    try:
+        path = Path(executable)
+        return str(path) if path.is_file() and os.access(path, os.X_OK) else None
+    except (OSError, TypeError, ValueError):
+        return None
+
+
 def _safe_error(code: str) -> RecognitionError:
     messages = {
         "provider_not_configured": "识别服务未配置",
@@ -330,7 +349,7 @@ class _DashScopeStreamingProvider:
         del filename
         if kind != "audio":
             raise _safe_error("unsupported_format")
-        ffmpeg = shutil.which("ffmpeg")
+        ffmpeg = ffmpeg_executable()
         if not ffmpeg:
             raise _safe_error("provider_not_configured")
         # Immutable original bytes are copied into a private temp directory.

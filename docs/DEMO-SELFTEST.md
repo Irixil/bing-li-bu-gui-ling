@@ -4,7 +4,7 @@
 
 ## 1. 安装并填配置
 
-需要 Python 3.12、Git、FFmpeg（浏览器 WebM 录音转换用）。无需前端构建工具。
+需要 Python 3.12 和 Git。无需前端构建工具。安装项目依赖后，系统没有 FFmpeg 时会使用固定版本的项目备用二进制，供浏览器 WebM 录音转换。
 
 ```bash
 git clone --branch codex/integration-demo-version https://github.com/Irixil/bing-li-bu-gui-ling.git
@@ -15,7 +15,7 @@ python -m pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
-Windows PowerShell 用 `py -3.12 -m venv .venv` 和 `.venv\Scripts\Activate.ps1`，复制文件用 `Copy-Item .env.example .env`。FFmpeg 装好后，`ffmpeg -version` 应能执行；macOS 可用 `brew install ffmpeg`，Windows 可用 `winget install Gyan.FFmpeg` 后重新开终端。
+Windows PowerShell 用 `py -3.12 -m venv .venv` 和 `.venv\Scripts\Activate.ps1`，复制文件用 `Copy-Item .env.example .env`。已有系统 `ffmpeg` 时项目会优先使用；否则使用 `imageio-ffmpeg==0.6.0` 携带的可执行文件。
 
 在本地 `.env` 填三项服务的配置。密钥由运行 Demo 的人自行提供，GitHub 只包含示例字段；不要把魔搭 Token 填到阿里云服务。
 

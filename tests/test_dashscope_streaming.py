@@ -1,7 +1,6 @@
 """Offline protocol tests; no key, network call, or real-ASR claim."""
 import json
 import queue
-import shutil
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -208,11 +207,11 @@ def test_http_asr_assigns_mime_extension_to_storage_original(monkeypatch):
     assert b'filename="original.webm"' in request.data
 
 
-@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is an optional runtime requirement for streaming ASR")
+@pytest.mark.skipif(not recognition.ffmpeg_executable(), reason="ffmpeg runtime is unavailable")
 def test_real_ffmpeg_decodes_webm_copy_to_complete_pcm(tmp_path, monkeypatch):
     configure(monkeypatch)
     original = tmp_path / "original.webm"
-    subprocess.run([shutil.which("ffmpeg"), "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.2",
+    subprocess.run([recognition.ffmpeg_executable(), "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.2",
                     "-c:a", "libopus", "-y", str(original)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     before = original.read_bytes(); captured = {}
     def inspect_pcm(self, pcm):

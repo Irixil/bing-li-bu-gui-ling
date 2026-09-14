@@ -44,6 +44,9 @@ SAFE_MODEL_ERROR_CODES = frozenset({
     'model_configuration_invalid', 'model_http_error', 'model_redirect_rejected',
     'model_timeout', 'model_network_error', 'model_response_invalid',
     'model_response_too_large', 'model_output_truncated', 'model_account_binding_required',
+    'model_schema_invalid', 'model_safety_invalid', 'model_grounding_invalid',
+    'model_followup_invalid', 'model_evidence_invalid', 'model_source_invalid',
+    'model_conflict_invalid', 'model_time_invalid',
 })
 
 

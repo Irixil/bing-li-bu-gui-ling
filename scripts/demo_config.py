@@ -5,7 +5,6 @@ import importlib.util
 import ipaddress
 import os
 import re
-import shutil
 from pathlib import Path
 from typing import MutableMapping
 from urllib.parse import urlsplit
@@ -158,7 +157,9 @@ def check_demo_configuration(
                         issues[section].append("MEDIA_ASR_URL 必须为受支持的百炼 wss://…/api-ws/v1/inference 地址")
                 if importlib.util.find_spec("websockets") is None:
                     issues[section].append("缺少 websockets 依赖，请安装项目 requirements.txt")
-                if shutil.which("ffmpeg") is None:
+                from backend.recognition import ffmpeg_executable
+
+                if ffmpeg_executable() is None:
                     issues[section].append("缺少 ffmpeg，浏览器录音转换无法启动")
 
     for key in ("MEDIA_UPLOAD_MAX_BYTES", "MEDIA_UPLOAD_PART_MAX_BYTES", "MEDIA_UPLOAD_MAX_PARTS"):
