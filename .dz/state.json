@@ -15,9 +15,9 @@
     "authorized_risk_id": null,
     "blocker": null,
     "blocker_kind": null,
-    "resume_when": "需要修复浏览器 WebM、补装 ffmpeg、启动 P1、补齐正式产品约定或继续发布整合时",
+    "resume_when": "需要继续真实模型、ffmpeg/WebM、P1 或发布工作时",
     "finish_reason": null,
-    "updated_at": "2026-09-14T10:31:16+00:00"
+    "updated_at": "2026-09-14T11:00:43+00:00"
   },
   "decisions": {
     "intent": {

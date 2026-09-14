@@ -54,3 +54,12 @@
 - feaf182 的真实合成 WAV/PNG 156/156 只作为旧提交历史证据。
 - 浏览器真实 WebM 的协议错误仍未修复；手机、通用格式、真实患者、临床准确率和生产部署未验证。
 - P1 复杂医学图片只登记需求，本轮未实现。
+
+## 用户要求后的复测
+
+- 受测提交：`7c980f5bda55aed3715e97854bcfd8fa5673d00f`。
+- `.venv312/bin/python -m pytest -q`：728 passed，1 skipped，69.42 秒；跳过项仍是本机缺少可选 `ffmpeg` 的 DashScope streaming 真实转码检查。
+- `python3.12 scripts/validate_task_d.py`：通过，3 条登记、3 条运行夹具、20 个矩阵用例一致。
+- `npm run check:contracts`、两个前端脚本语法检查、`git diff --check`：通过；未修改前端。
+- 公开病例 HTTP 演示：通过，provider=mock，1 位公开患者、3 段改编资料；临时报告 SHA-256 为 `977e814e9d1465a5349d364983d8df73962daf3a722ea615f8411afbe79cafa3`。
+- 本轮仍未读取 `.env` 或调用真实模型，不改变前述未证明范围。
