@@ -1,7 +1,7 @@
 # 病历不归零 MVP
 
 > 本页由 DZ 项目账本生成；真实记录保存在 `.dz/state.json`。
-<!-- DZ-CURRENT-VIEW:06568c130349ddcd02b3e3a1b6eb63f27a1a39f66183267441895135807fda7f -->
+<!-- DZ-CURRENT-VIEW:c835c846182c6a89565263b4f2dd77635aea0a81ec99e846509fb9107eff8da0 -->
 
 ## 现在做到哪
 - 当前情况：等用户决定
@@ -10,14 +10,14 @@
 - 流程检查位置（不代替实际进度）：先把想法说清楚
 - 当前约定指纹：无
 - 当前检查对象：无
-- 下一步：在本地 .env 的 AIHUBMIX_API_KEY 空白项填入有效 Key；随后运行在线配置检查，并只用仓库合成 WAV/PNG 执行一次完整真实 HTTP 自测。
-- 等待内容：有效 AIHubMix Key 仅写入当前项目 0600 .env；不要发到聊天或提交 Git。
+- 下一步：在 AIHubMix 控制台确认当前 Key 允许 whisper-large-v3，并确认余额、IP 白名单和模型白名单；修正后只复测一次仓库合成语音。
+- 等待内容：AIHubMix 控制台中的 whisper-large-v3 权限/余额限制已修正；无需把 Key 发到聊天。
 - 等待决定的风险：无
 - 正在使用的动作通行条：无
 - 阻塞原因：无
 - 阻塞类型：无
 - 恢复条件：无
-- 最后更新：2026-09-15T09:50:46+00:00
+- 最后更新：2026-09-15T10:01:54+00:00
 
 ## 现在按哪个版本做
 - 想解决的事：还没写下来；当前版本：docs/sdlc/intent.md
@@ -35,6 +35,7 @@
 - REAL-DEEPSEEK-C001：使用旧版本本地 DeepSeek 密钥做一次真实连通测试（low，accepted，动作失败）
 - REAL-DEEPSEEK-C001-DIAG：诊断修复后再次运行一条 DeepSeek 合成样例（low，accepted，动作已完成）
 - REAL-DEEPSEEK-HTTP-C001：当前项目真实文字 HTTP 链路请求（low，accepted，动作已完成）
+- REAL-AIHUBMIX-MEDIA-HTTP-20260915：使用本地 AIHubMix Key 跑一次合成媒体真实 HTTP 自测（low，accepted，动作失败）
 
 ## 最近证据
 以下是历史索引，不代表当前版本已通过；以相同检查对象和当前要求下的有效证据为准。

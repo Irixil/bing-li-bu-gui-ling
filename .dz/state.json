@@ -9,15 +9,15 @@
     "status": "waiting_user",
     "product_verdict": "not_assessed",
     "stage": "discovery",
-    "next_action": "在本地 .env 的 AIHUBMIX_API_KEY 空白项填入有效 Key；随后运行在线配置检查，并只用仓库合成 WAV/PNG 执行一次完整真实 HTTP 自测。",
-    "waiting_for": "有效 AIHubMix Key 仅写入当前项目 0600 .env；不要发到聊天或提交 Git。",
+    "next_action": "在 AIHubMix 控制台确认当前 Key 允许 whisper-large-v3，并确认余额、IP 白名单和模型白名单；修正后只复测一次仓库合成语音。",
+    "waiting_for": "AIHubMix 控制台中的 whisper-large-v3 权限/余额限制已修正；无需把 Key 发到聊天。",
     "pending_risk_id": null,
     "authorized_risk_id": null,
     "blocker": null,
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-15T09:50:46+00:00"
+    "updated_at": "2026-09-15T10:01:54+00:00"
   },
   "decisions": {
     "intent": {
@@ -142,6 +142,30 @@
       "decision_by": "project owner",
       "decision_reference": "用户在 2026-09-14 当前任务明确授权：直接执行到项目跑通，只有特别严重卡点再告知",
       "decided_at": "2026-09-14T15:36:53+00:00"
+    },
+    {
+      "id": "REAL-AIHUBMIX-MEDIA-HTTP-20260915",
+      "title": "使用本地 AIHubMix Key 跑一次合成媒体真实 HTTP 自测",
+      "level": "low",
+      "action_kind": "spend",
+      "consequence": "会把仓库明确标记的合成 WAV、PNG 和合成病历文字发送给已配置的 AIHubMix/DeepSeek，最多产生极小 API 费用；不会发送真实患者资料，也不会记录或输出密钥。",
+      "safer_option": "只保留字段检查和 744 项离线回归，但不能证明当前 Key、账号权限和真实媒体链路可用。",
+      "recovery": "任一真实调用失败就保留脱敏报告，不自动重试、不更换高价模型、不放宽安全校验。",
+      "scope": "在当前本地配置和分支上启动隔离服务，只运行 scripts.selftest 一轮；使用 data/synthetic/selftest/voice.wav 与 card.png，最多触发 1 次 HubMix ASR、1 次 HubMix OCR 和 4 次既有 DeepSeek 文字整理调用。",
+      "lease_contract_sha256": null,
+      "lease_target_id": null,
+      "lease_revision": null,
+      "lease_environment": null,
+      "amount_limit": "最多 1 轮完整自测；HubMix ASR 1 次、OCR 1 次，DeepSeek 文字整理最多 4 次；无自动重试。",
+      "expires_at": "2026-09-15T19:00:00+08:00",
+      "authorization_pending": false,
+      "decision": "accepted",
+      "action_status": "failed",
+      "action_reference": "隔离自测报告 /private/tmp/bingli-aihubmix-LJWfnD/online-selftest.json；同一轮共 134 项检查，133 通过、1 失败；AIHubMix qwen3.7-flash OCR 成功且命中两个关键词，whisper-large-v3 ASR 返回 provider_auth_failed；未重试、未换模型。",
+      "action_at": "2026-09-15T10:00:47+00:00",
+      "decision_by": "project owner",
+      "decision_reference": "用户在 2026-09-15 按助理明确说明填好本地 Key 后回复：填好了；承接此前直接执行到项目跑通的授权。",
+      "decided_at": "2026-09-15T09:59:14+00:00"
     }
   ],
   "issues": [
@@ -225,10 +249,10 @@
       "route": "work_item",
       "work_item_id": null,
       "evidence_ids": [],
-      "resolution": "01d503b 新增 AIHubMix OpenAI-compatible 文件转写路线；官方接口声明支持 WebM，项目请求格式与安全边界已由离线测试覆盖。由于本地 AIHUBMIX_API_KEY 仍为空，尚未用真实 HubMix 账号完成浏览器 WebM 识别。",
-      "prevention": "首次真实测试只用仓库合成素材和浏览器测试录音；失败时保留原件和脱敏错误，不自动放宽安全规则。",
+      "resolution": "2026-09-15 先用仓库合成 WAV 调用 AIHubMix whisper-large-v3，接口返回 provider_auth_failed；同一 Key 的 OCR 已成功，因此本地读取与基础 Key 有效性已确认，剩余问题优先指向当前 Key 的 ASR 模型权限或该付费通道。浏览器 WebM 尚未进入真实复测。",
+      "prevention": "先在 AIHubMix 控制台核对 whisper-large-v3 权限/余额，再只复测一次合成语音；WAV 通过后才做浏览器 WebM。",
       "created_at": "2026-09-14T10:30:59+00:00",
-      "updated_at": "2026-09-15T09:50:24+00:00"
+      "updated_at": "2026-09-15T10:01:00+00:00"
     },
     {
       "id": "MEDIA-REAL-CREDENTIALS",
@@ -242,10 +266,10 @@
       "route": "plan",
       "work_item_id": null,
       "evidence_ids": [],
-      "resolution": "已在 01d503b 实现 AIHubMix 一把 Key 的媒体接入并通过 744 项全量回归；本地 .env 已配置 provider 与空的专用 Key 槽。现在只缺用户把有效 AIHUBMIX_API_KEY 写入本地 0600 .env，并用仓库合成 WAV/PNG 完成首次真实在线自测。",
-      "prevention": "AIHubMix provider 固定官方 HTTPS 地址，只读取 AIHUBMIX_API_KEY，不复用旧供应商媒体 Key；真实首测仅用合成资料。",
+      "resolution": "2026-09-15 首轮真实合成 HTTP 自测证明 AIHubMix Key 已被项目正确读取，qwen3.7-flash OCR 成功并命中胸口疼、喘不上气；whisper-large-v3 ASR 返回 provider_auth_failed，未重试。当前只剩 Key 的语音模型权限或账户付费通道需要在 AIHubMix 控制台确认。",
+      "prevention": "继续保持专用 Key、固定官方地址和合成首测；语音权限修正前不自动换模型或重复计费。",
       "created_at": "2026-09-14T15:39:12+00:00",
-      "updated_at": "2026-09-15T09:49:42+00:00"
+      "updated_at": "2026-09-15T10:00:54+00:00"
     }
   ]
 }
