@@ -1,23 +1,23 @@
 # 病历不归零 MVP
 
 > 本页由 DZ 项目账本生成；真实记录保存在 `.dz/state.json`。
-<!-- DZ-CURRENT-VIEW:5830ae59a3baa7dfce7f2c1efbf6d3bd2b5ff68ea9193cff1ae5154d6e4ea34c -->
+<!-- DZ-CURRENT-VIEW:06568c130349ddcd02b3e3a1b6eb63f27a1a39f66183267441895135807fda7f -->
 
 ## 现在做到哪
-- 当前情况：缺少执行条件
+- 当前情况：等用户决定
 - 产品情况：尚未判断
-- 当前进度：缺少执行条件
+- 当前进度：等用户决定
 - 流程检查位置（不代替实际进度）：先把想法说清楚
 - 当前约定指纹：无
 - 当前检查对象：无
-- 下一步：无
-- 等待内容：无
+- 下一步：在本地 .env 的 AIHUBMIX_API_KEY 空白项填入有效 Key；随后运行在线配置检查，并只用仓库合成 WAV/PNG 执行一次完整真实 HTTP 自测。
+- 等待内容：有效 AIHubMix Key 仅写入当前项目 0600 .env；不要发到聊天或提交 Git。
 - 等待决定的风险：无
 - 正在使用的动作通行条：无
-- 阻塞原因：当前工作区没有可用于真实语音识别的 DashScope ASR key，也没有支持图片的 OCR endpoint/model/key；代码、FFmpeg、离线完整链路和真实文字链路均已跑通，继续调用真实媒体服务会要求不存在的外部凭据
-- 阻塞类型：missing_external_condition
-- 恢复条件：提供 DashScope ASR key，以及支持图片的 OCR endpoint、model 和 key（只写入本地 0600 .env）
-- 最后更新：2026-09-14T15:40:11+00:00
+- 阻塞原因：无
+- 阻塞类型：无
+- 恢复条件：无
+- 最后更新：2026-09-15T09:50:46+00:00
 
 ## 现在按哪个版本做
 - 想解决的事：还没写下来；当前版本：docs/sdlc/intent.md
