@@ -106,6 +106,38 @@ def test_valid_online_config_and_shared_media_key(tmp_path):
     assert not any(demo_config.check_demo_configuration(env).values())
 
 
+def test_aihubmix_media_needs_only_one_key_and_uses_internal_defaults(tmp_path):
+    env = complete_online_env(tmp_path)
+    env["MEDIA_RECOGNITION_PROVIDER"] = "aihubmix"
+    for key in (
+        "MEDIA_ASR_URL",
+        "MEDIA_ASR_MODEL",
+        "MEDIA_ASR_API_KEY",
+        "MEDIA_OCR_URL",
+        "MEDIA_OCR_MODEL",
+        "MEDIA_OCR_API_KEY",
+    ):
+        del env[key]
+    env["AIHUBMIX_API_KEY"] = "shared-hubmix-secret"
+
+    assert not any(demo_config.check_demo_configuration(env).values())
+
+
+def test_aihubmix_missing_shared_key_is_reported_without_values(tmp_path):
+    env = complete_online_env(tmp_path)
+    env["MEDIA_RECOGNITION_PROVIDER"] = "aihubmix"
+    env["MEDIA_ASR_API_KEY"] = "stale-other-provider-secret"
+    env["MEDIA_OCR_API_KEY"] = "stale-other-provider-secret"
+    env["MEDIA_RECOGNITION_API_KEY"] = "stale-shared-secret"
+    env["AIHUBMIX_API_KEY"] = "  "
+
+    issues = demo_config.check_demo_configuration(env)
+    assert "AIHUBMIX_API_KEY" in " ".join(issues["语音识别（ASR）"])
+    assert "AIHUBMIX_API_KEY" in " ".join(issues["照片识字（OCR）"])
+    assert "shared-hubmix-secret" not in str(issues)
+    assert "stale-" not in str(issues)
+
+
 @pytest.mark.parametrize("provider,settings", [
     ("deepseek", {"DEEPSEEK_API_KEY": "test-secret"}),
     ("deepseek-ai", {"DEEPSEEK_API_KEY": "test-secret", "DEEPSEEK_MODEL": "custom-model"}),

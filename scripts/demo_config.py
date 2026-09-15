@@ -130,13 +130,17 @@ def check_demo_configuration(
                 issues[section].append("缺少 " + prefix + "_PROVIDER（或 MEDIA_RECOGNITION_PROVIDER）")
             elif provider == "mock":
                 issues[section].append("在线模式不能使用 Mock；离线回归请显式加 --offline")
-            elif provider not in {"openai_compatible", "openai-compatible"} and not (prefix == "MEDIA_ASR" and provider == "dashscope_streaming"):
+            elif provider not in {"openai_compatible", "openai-compatible", "aihubmix"} and not (prefix == "MEDIA_ASR" and provider == "dashscope_streaming"):
                 issues[section].append(prefix + "_PROVIDER 不受当前识别适配器支持")
             if provider and provider != "mock":
-                required(section, prefix + "_URL", prefix + "_MODEL")
-                keys = [prefix + "_API_KEY", "MEDIA_RECOGNITION_API_KEY"]
-                if prefix == "MEDIA_ASR" and provider == "dashscope_streaming":
-                    keys.append("DASHSCOPE_API_KEY")
+                if provider != "aihubmix":
+                    required(section, prefix + "_URL", prefix + "_MODEL")
+                if provider == "aihubmix":
+                    keys = ["AIHUBMIX_API_KEY"]
+                else:
+                    keys = [prefix + "_API_KEY", "MEDIA_RECOGNITION_API_KEY"]
+                    if prefix == "MEDIA_ASR" and provider == "dashscope_streaming":
+                        keys.append("DASHSCOPE_API_KEY")
                 # Mirror the adapter's first non-empty raw-value fallback,
                 # then reject a selected value containing only whitespace.
                 if not next((env[key] for key in keys if env.get(key)), "").strip():

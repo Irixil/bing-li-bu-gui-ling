@@ -113,7 +113,7 @@ curl http://127.0.0.1:18768/api/media/capabilities
 5. 使用当前 `media.version` 调 `POST /api/media/{media_id}/recognize`。
 6. 轮询 `GET /api/media/{media_id}`，识别成功后查看 `media.recognition`；失败时原件仍可读。
 
-媒体在 `.env` 显式配置 `MEDIA_RECOGNITION_PROVIDER=mock` 时使用明确标记的 Mock 识别；未配置或配置真实 provider 时不会静默回退。`feaf182` 已用仓库合成 WAV/PNG 跑通一次真实 ASR/OCR 全链路；浏览器真实 WebM 曾识别失败但原件保留。手机、真实患者、通用格式、临床和公网生产仍未验证。详细字段、状态、错误码和版本语义见 [docs/API.md](docs/API.md)；后端 QA 入口见 [docs/qa/README.md](docs/qa/README.md)。
+媒体在 `.env` 显式配置 `MEDIA_RECOGNITION_PROVIDER=mock` 时使用明确标记的 Mock 识别；未配置或配置真实 provider 时不会静默回退。当前支持 `MEDIA_RECOGNITION_PROVIDER=aihubmix` 配合一条 `AIHUBMIX_API_KEY`，默认用 `whisper-large-v3` 做中文语音转写、`qwen3.7-flash` 做照片识字；文字整理仍可保留已经验证的 DeepSeek。`feaf182` 已用仓库合成 WAV/PNG 跑通一次其他供应商的真实 ASR/OCR 全链路；AIHubMix 路线还需本地 Key 完成首次真实请求。手机、真实患者、通用格式、临床和公网生产仍未验证。详细配置见 [模型接入说明](docs/MODEL-CONNECTION.md)，字段、状态、错误码和版本语义见 [docs/API.md](docs/API.md)；后端 QA 入口见 [docs/qa/README.md](docs/qa/README.md)。
 
 ## 团队从哪里开始
 

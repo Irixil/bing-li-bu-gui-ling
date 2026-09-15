@@ -3,8 +3,9 @@
 这个模块是媒体识别的唯一调用接缝。它不保存文件、不写数据库，也不创建
 Event；调用方负责把返回值持久化，并决定何时进行危险扫描和事件关联。
 
-真实供应商通过 OpenAI-compatible HTTP 或 DashScope inference WebSocket
-接入；服务地址、模型和凭据都必须显式配置。没有配置时不会退回 Mock。
+真实供应商通过 AIHubMix、OpenAI-compatible HTTP 或 DashScope inference
+WebSocket 接入；通用供应商必须显式配置地址、模型和凭据。AIHubMix 使用
+固定官方地址和一把专用 Key。没有配置时不会退回 Mock。
 """
 
 from __future__ import annotations
@@ -90,6 +91,11 @@ _IMAGE_TYPES = {
 }
 _DEFAULT_RESPONSE_BYTES = 2 * 1024 * 1024
 _DEFAULT_TIMEOUT_SECONDS = 30.0
+_AIHUBMIX_ASR_URL = "https://aihubmix.com/v1/audio/transcriptions"
+_AIHUBMIX_OCR_URL = "https://aihubmix.com/v1/chat/completions"
+_AIHUBMIX_ASR_MODEL = "whisper-large-v3"
+_AIHUBMIX_OCR_MODEL = "qwen3.7-flash"
+_AIHUBMIX_AUDIO_MAX_BYTES = 25 * 1024 * 1024
 
 
 def ffmpeg_executable() -> str | None:
@@ -242,20 +248,36 @@ def _config_for(kind: str, provider: str | None) -> _ProviderConfig:
             timeout_seconds=0,
             max_response_bytes=_DEFAULT_RESPONSE_BYTES,
         )
-    if name not in {"openai_compatible", "openai-compatible", "dashscope_streaming"}:
+    if name not in {
+        "openai_compatible",
+        "openai-compatible",
+        "dashscope_streaming",
+        "aihubmix",
+    }:
         raise _safe_error("provider_not_configured")
     if name == "dashscope_streaming" and kind != "audio":
         raise _safe_error("provider_not_configured")
-    url = os.getenv(f"{prefix}_URL", "").strip()
-    model = os.getenv(f"{prefix}_MODEL", "").strip()
-    api_key = os.getenv(f"{prefix}_API_KEY") or os.getenv("MEDIA_RECOGNITION_API_KEY", "")
+    if name == "aihubmix":
+        # First-class defaults keep one vendor key from being paired with an
+        # arbitrary user-supplied URL. Per-kind model overrides remain useful,
+        # but credentials always go to AIHubMix's documented HTTPS endpoints.
+        url = _AIHUBMIX_ASR_URL if kind == "audio" else _AIHUBMIX_OCR_URL
+        default_model = _AIHUBMIX_ASR_MODEL if kind == "audio" else _AIHUBMIX_OCR_MODEL
+        model = os.getenv(f"{prefix}_MODEL", "").strip() or default_model
+    else:
+        url = os.getenv(f"{prefix}_URL", "").strip()
+        model = os.getenv(f"{prefix}_MODEL", "").strip()
+    if name == "aihubmix":
+        api_key = os.getenv("AIHUBMIX_API_KEY", "")
+    else:
+        api_key = os.getenv(f"{prefix}_API_KEY") or os.getenv("MEDIA_RECOGNITION_API_KEY", "")
     if name == "dashscope_streaming":
         api_key = api_key or os.getenv("DASHSCOPE_API_KEY", "")
         _validate_dashscope_url(url)
     if not url or not model or not api_key.strip() or "\r" in api_key or "\n" in api_key:
         raise _safe_error("provider_not_configured")
     return _ProviderConfig(
-        name="dashscope_streaming" if name == "dashscope_streaming" else "openai_compatible",
+        name=name if name in {"dashscope_streaming", "aihubmix"} else "openai_compatible",
         url=url,
         model=model,
         api_key=api_key,
@@ -523,6 +545,8 @@ class _OpenAICompatibleProvider:
         filename: str,
     ) -> str:
         if kind == "audio":
+            if self._config.name == "aihubmix" and len(media) > _AIHUBMIX_AUDIO_MAX_BYTES:
+                raise _safe_error("limit_exceeded")
             request = self._audio_request(media, content_type, filename)
         else:
             request = self._image_request(media, content_type, filename)
@@ -540,6 +564,12 @@ class _OpenAICompatibleProvider:
             ("model", self._config.model.encode("utf-8")),
             ("file", media),
         ]
+        if self._config.name == "aihubmix":
+            fields[1:1] = [
+                ("language", b"zh"),
+                ("response_format", b"json"),
+                ("temperature", b"0.2"),
+            ]
         body = bytearray()
         for name, value in fields:
             body.extend(f"--{boundary}\r\n".encode())
@@ -582,7 +612,13 @@ class _OpenAICompatibleProvider:
                             "type": "text",
                             "text": "请逐字识别图片中的可见文字。不要补写、纠错或推测；看不清的部分保留为空。",
                         },
-                        {"type": "image_url", "image_url": {"url": image}},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image,
+                                **({"detail": "high"} if self._config.name == "aihubmix" else {}),
+                            },
+                        },
                     ],
                 }
             ],

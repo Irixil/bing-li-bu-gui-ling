@@ -1,3 +1,4 @@
+import json
 import urllib.error
 from pathlib import Path
 
@@ -48,6 +49,55 @@ def test_unconfigured_real_provider_does_not_silently_use_mock(tmp_path):
 
     assert exc_info.value.code == "provider_not_configured"
     assert exc_info.value.retryable is False
+
+
+def test_aihubmix_uses_one_key_and_safe_media_defaults(monkeypatch):
+    monkeypatch.setenv("AIHUBMIX_API_KEY", "shared-hubmix-secret")
+    for key in (
+        "MEDIA_ASR_URL",
+        "MEDIA_ASR_MODEL",
+        "MEDIA_ASR_API_KEY",
+        "MEDIA_OCR_URL",
+        "MEDIA_OCR_MODEL",
+        "MEDIA_OCR_API_KEY",
+        "MEDIA_RECOGNITION_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    audio = recognition._config_for("audio", "aihubmix")
+    image = recognition._config_for("image", "aihubmix")
+
+    assert (audio.name, audio.url, audio.model, audio.api_key) == (
+        "aihubmix",
+        "https://aihubmix.com/v1/audio/transcriptions",
+        "whisper-large-v3",
+        "shared-hubmix-secret",
+    )
+    assert (image.name, image.url, image.model, image.api_key) == (
+        "aihubmix",
+        "https://aihubmix.com/v1/chat/completions",
+        "qwen3.7-flash",
+        "shared-hubmix-secret",
+    )
+
+
+def test_aihubmix_ignores_custom_urls_and_allows_model_overrides(monkeypatch):
+    monkeypatch.setenv("AIHUBMIX_API_KEY", "shared-hubmix-secret")
+    monkeypatch.setenv("MEDIA_ASR_API_KEY", "stale-other-provider-secret")
+    monkeypatch.setenv("MEDIA_RECOGNITION_API_KEY", "stale-shared-secret")
+    monkeypatch.setenv("MEDIA_ASR_URL", "https://untrusted.invalid/steal")
+    monkeypatch.setenv("MEDIA_OCR_URL", "https://untrusted.invalid/steal")
+    monkeypatch.setenv("MEDIA_ASR_MODEL", "whisper-1")
+    monkeypatch.setenv("MEDIA_OCR_MODEL", "qwen3.8-flash")
+
+    audio = recognition._config_for("audio", "aihubmix")
+    image = recognition._config_for("image", "aihubmix")
+
+    assert audio.url == "https://aihubmix.com/v1/audio/transcriptions"
+    assert image.url == "https://aihubmix.com/v1/chat/completions"
+    assert audio.model == "whisper-1"
+    assert image.model == "qwen3.8-flash"
+    assert audio.api_key == image.api_key == "shared-hubmix-secret"
 
 
 def test_unsupported_format_is_rejected_before_provider_call(tmp_path):
@@ -158,6 +208,85 @@ def test_configured_provider_returns_raw_text_without_an_extra_correction_layer(
     assert result["provider"] == "openai_compatible"
     assert result["model"] == "ocr-test"
     assert result["is_mock"] is False
+
+
+def test_aihubmix_image_request_uses_high_detail_and_shared_key(tmp_path, monkeypatch):
+    path = write_media(tmp_path, "photo.png", b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setenv("AIHUBMIX_API_KEY", "shared-hubmix-secret")
+    captured = {}
+
+    def opener(request, timeout):
+        captured["request"] = request
+        return FakeResponse('{"choices":[{"message":{"content":"药名 5mg"}}]}'.encode())
+
+    monkeypatch.setattr(recognition, "_open_request", opener)
+    result = recognize_file(
+        path,
+        kind="image",
+        content_type="image/png",
+        attempt_id="attempt-aihubmix-image",
+        provider="aihubmix",
+    )
+
+    request = captured["request"]
+    body = json.loads(request.data.decode("utf-8"))
+    image_part = body["messages"][0]["content"][1]["image_url"]
+    assert request.full_url == "https://aihubmix.com/v1/chat/completions"
+    assert request.get_header("Authorization") == "Bearer shared-hubmix-secret"
+    assert body["model"] == "qwen3.7-flash"
+    assert image_part["detail"] == "high"
+    assert image_part["url"].startswith("data:image/png;base64,")
+    assert result["provider"] == "aihubmix"
+
+
+def test_aihubmix_audio_request_uses_chinese_low_temperature_defaults(tmp_path, monkeypatch):
+    path = write_media(tmp_path, "voice.wav", b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 24)
+    monkeypatch.setenv("AIHUBMIX_API_KEY", "shared-hubmix-secret")
+    captured = {}
+
+    def opener(request, timeout):
+        captured["request"] = request
+        return FakeResponse('{"text":"今天胸口疼"}'.encode())
+
+    monkeypatch.setattr(recognition, "_open_request", opener)
+    result = recognize_file(
+        path,
+        kind="audio",
+        content_type="audio/wav",
+        attempt_id="attempt-aihubmix-audio",
+        provider="aihubmix",
+    )
+
+    request = captured["request"]
+    body = request.data.decode("utf-8", errors="strict")
+    assert request.full_url == "https://aihubmix.com/v1/audio/transcriptions"
+    assert request.get_header("Authorization") == "Bearer shared-hubmix-secret"
+    for expected in ('name="model"\r\n\r\nwhisper-large-v3', 'name="language"\r\n\r\nzh',
+                     'name="response_format"\r\n\r\njson', 'name="temperature"\r\n\r\n0.2'):
+        assert expected in body
+    assert result["provider"] == "aihubmix"
+
+
+def test_aihubmix_rejects_audio_over_provider_limit_before_request(tmp_path, monkeypatch):
+    path = write_media(tmp_path, "voice.wav", b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 24)
+    monkeypatch.setenv("AIHUBMIX_API_KEY", "shared-hubmix-secret")
+    monkeypatch.setattr(recognition, "_AIHUBMIX_AUDIO_MAX_BYTES", 1)
+    monkeypatch.setattr(
+        recognition,
+        "_open_request",
+        lambda request, timeout: pytest.fail("oversized audio must not reach AIHubMix"),
+    )
+
+    with pytest.raises(RecognitionError) as exc_info:
+        recognize_file(
+            path,
+            kind="audio",
+            content_type="audio/wav",
+            attempt_id="attempt-aihubmix-audio-limit",
+            provider="aihubmix",
+        )
+
+    assert exc_info.value.code == "limit_exceeded"
 
 
 def test_empty_provider_text_is_a_non_retryable_recognition_failure(tmp_path, monkeypatch):

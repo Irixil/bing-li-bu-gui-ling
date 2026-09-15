@@ -17,15 +17,14 @@ cp .env.example .env
 
 Windows PowerShell 用 `py -3.12 -m venv .venv` 和 `.venv\Scripts\Activate.ps1`，复制文件用 `Copy-Item .env.example .env`。已有系统 `ffmpeg` 时项目会优先使用；否则使用 `imageio-ffmpeg==0.6.0` 携带的可执行文件。
 
-在本地 `.env` 填三项服务的配置。密钥由运行 Demo 的人自行提供，GitHub 只包含示例字段；不要把魔搭 Token 填到阿里云服务。
+在本地 `.env` 填三项服务的配置。密钥由运行 Demo 的人自行提供，GitHub 只包含示例字段；不要把一个站点的密钥填给另一个站点。当前最低成本的媒体方案是一把 AIHubMix Key 同时供语音和图片使用。
 
 | 能力 | 需要填写 |
 |---|---|
 | 文字整理 | `MODELSCOPE_ACCESS_TOKEN`；确认 `MODELSCOPE_MODEL` 是该账号可用的模型 ID |
-| 语音转写 | `MEDIA_ASR_API_KEY`，使用 DashScope 的 Key；示例采用 `qwen-audio-3.0-asr-flash-streaming` |
-| 照片识字 | `MEDIA_OCR_URL`（完整 chat/completions 地址）、`MEDIA_OCR_MODEL`（支持图片的模型）、`MEDIA_OCR_API_KEY` |
+| 语音转写和照片识字 | `MEDIA_RECOGNITION_PROVIDER=aihubmix`、`AIHUBMIX_API_KEY`；默认分别使用 `whisper-large-v3` 和 `qwen3.7-flash` |
 
-ASR 使用 DashScope WebSocket inference 协议；后端将已保存的原件复制到临时目录，转换为 PCM 后完整发送，仅保留最终转写句子，再执行危险扫描和记录关联。原件不会被转码覆盖。此版本是结束录音后转写，没有实现边说边显示字幕，也没有改 P2 VAD。
+AIHubMix ASR 使用 OpenAI 兼容的文件转写接口，支持浏览器录制的 WebM 和项目合成 WAV；原件不会被覆盖，仅把机器转写作为待核对初稿，再执行危险扫描和记录关联。此版本是结束录音后转写，没有实现边说边显示字幕，也没有改 P2 VAD。原 DashScope WebSocket 与通用 OpenAI-compatible 配置仍保留为备选，详见 [模型接入说明](MODEL-CONNECTION.md)。
 
 ```bash
 python -m scripts.start_demo --check-config
@@ -84,5 +83,7 @@ python -m scripts.selftest --allow-mock --audio data/synthetic/selftest/voice.wa
 - [WebSocket 接入流程和域名](https://help.aliyun.com/zh/model-studio/fun-asr-realtime-websocket-api)
 - [客户端 run-task / finish-task 事件](https://help.aliyun.com/zh/model-studio/fun-asr-client-events)
 - [服务端最终句和任务状态事件](https://help.aliyun.com/zh/model-studio/fun-asr-server-events)
+- [AIHubMix STT 语音转文本](https://docs.aihubmix.com/cn/api/STT)
+- [AIHubMix 图像理解](https://docs.aihubmix.com/cn/api/vision)
 
-核对日期：2026-09-13。必须匹配账号的区域和模型权限；官方协议核对与替身测试不代替真实 Key 的请求验收。
+核对日期：2026-09-15。必须匹配账号的模型权限；官方协议核对与替身测试不代替真实 Key 的请求验收。

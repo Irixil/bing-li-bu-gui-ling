@@ -4,6 +4,27 @@
 
 将 `.env.example` 复制为本地 `.env` 并填写，启动使用 `python -m backend.run_local`。密钥不能放前端或提交 Git，运行日志及报告不会回显密钥。更换供应商时同时更换 URL、模型名和对应密钥，不能把魔搭密钥填到别的站点。
 
+## AIHubMix：一把 Key 补齐语音和图片（当前低成本推荐）
+
+文字整理继续使用已经完成真实联调的 DeepSeek，本轮不切换。语音转写和照片识字共用一把 AIHubMix Key，只需在本地 `.env` 增加：
+
+```dotenv
+MEDIA_RECOGNITION_PROVIDER=aihubmix
+AIHUBMIX_API_KEY=填自己的密钥
+MEDIA_RECOGNITION_TIMEOUT_SECONDS=60
+```
+
+程序会固定使用 AIHubMix 官方 HTTPS 地址，不读取自定义媒体 URL，避免把 Key 误发给其他站点。默认模型如下：
+
+| 能力 | 默认模型 | 当前选择原因 |
+|---|---|---|
+| 中文语音转写 | `whisper-large-v3` | 官方文档明确推荐中文使用；请求固定带 `language=zh`、`temperature=0.2` |
+| 照片识字 | `qwen3.7-flash` | 支持视觉，价格低；OCR 请求使用高细节图片输入 |
+
+如需试其他模型，只覆盖 `MEDIA_ASR_MODEL` 或 `MEDIA_OCR_MODEL`，不必重复 Key。AIHubMix 音频接口上限为 25MB，超过时应用会在本地明确拒绝，不产生无效请求。模型价格和可用性会变化，上线前以 AIHubMix 模型页为准。
+
+这条接入只用于普通单据、处方、检查单上的可见文字和普通语音转写。心电图、CT/MRI、超声、病理等复杂医学影像仍只保留原件，不能作为 OCR 成功或诊断结论。
+
 ## 魔搭配置
 
 令牌管理页 `https://www.modelscope.cn/my/settings/token` 用于获取密钥，不能作为模型 API 地址。官方推理入口为 `https://api-inference.modelscope.cn/v1`；模型必须使用该账号有权限的 ModelScope Model ID。
