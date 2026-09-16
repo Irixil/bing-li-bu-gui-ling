@@ -91,3 +91,9 @@
 低心率独立候选保留 `candidate_unverified`；确认记录后交接仍显示待专业复核。新增数值/单位/跨句对抗检查和保存、AI失败、确认、重启、交接回归。计时占位文件 `config/transport-timing.placeholder.json` 为 `runtime_enabled=false`，5 个阶段全部 null，不由运行时加载。此次无新远程模型请求；之前真实模型报告属于此前代码快照，新增改动的验证证据在 `docs/evidence/clinical-review/`。
 
 原有产品限制仍适用：结构整理保留完整原文、来源标签不核实医生身份、关键词规则不是诊断、复杂语义需人工核对、不能把未命中解释为正常。通用传输协议测试不等于所有中转站实际验收。
+
+## AIHubMix 低价语音闭环（2026-09-16）
+
+当前专用 Key 的控制台额度、模型范围和 IP 限制均无异常，但 Key 的 `/v1/models` 可用列表中不含 `whisper-large-v3`、`whisper-1` 或其他 Whisper 模型，与前一日 ASR 403 且无正常计费日志的现象一致。因此不放宽 Key 权限，改用同一 Key 已开放的 `gemini-2.5-flash-lite` 原生音频理解接口。
+
+单次授权的 6.892 秒合成 WAV 真实请求成功，返回文字命中“胸口疼”和“喘不上气”。AIHubMix 日志标记 Success、InputAudioTokens 221、扣费 `$0.000080`。本轮没有重试或切换模型；请求只含仓库合成资料，没有患者数据。全量 Python 回归为 **744 passed**，前端接口合同检查通过。详细证据见 [真实合成语音报告](evidence/real-aihubmix-gemini-audio-2026-09-16.md)。

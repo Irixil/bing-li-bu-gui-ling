@@ -69,8 +69,8 @@ def test_aihubmix_uses_one_key_and_safe_media_defaults(monkeypatch):
 
     assert (audio.name, audio.url, audio.model, audio.api_key) == (
         "aihubmix",
-        "https://aihubmix.com/v1/audio/transcriptions",
-        "whisper-large-v3",
+        "https://aihubmix.com/gemini/v1beta/models/gemini-2.5-flash-lite:generateContent",
+        "gemini-2.5-flash-lite",
         "shared-hubmix-secret",
     )
     assert (image.name, image.url, image.model, image.api_key) == (
@@ -87,15 +87,15 @@ def test_aihubmix_ignores_custom_urls_and_allows_model_overrides(monkeypatch):
     monkeypatch.setenv("MEDIA_RECOGNITION_API_KEY", "stale-shared-secret")
     monkeypatch.setenv("MEDIA_ASR_URL", "https://untrusted.invalid/steal")
     monkeypatch.setenv("MEDIA_OCR_URL", "https://untrusted.invalid/steal")
-    monkeypatch.setenv("MEDIA_ASR_MODEL", "whisper-1")
+    monkeypatch.setenv("MEDIA_ASR_MODEL", "gemini-2.5-flash")
     monkeypatch.setenv("MEDIA_OCR_MODEL", "qwen3.8-flash")
 
     audio = recognition._config_for("audio", "aihubmix")
     image = recognition._config_for("image", "aihubmix")
 
-    assert audio.url == "https://aihubmix.com/v1/audio/transcriptions"
+    assert audio.url == "https://aihubmix.com/gemini/v1beta/models/gemini-2.5-flash:generateContent"
     assert image.url == "https://aihubmix.com/v1/chat/completions"
-    assert audio.model == "whisper-1"
+    assert audio.model == "gemini-2.5-flash"
     assert image.model == "qwen3.8-flash"
     assert audio.api_key == image.api_key == "shared-hubmix-secret"
 
@@ -239,14 +239,16 @@ def test_aihubmix_image_request_uses_high_detail_and_shared_key(tmp_path, monkey
     assert result["provider"] == "aihubmix"
 
 
-def test_aihubmix_audio_request_uses_chinese_low_temperature_defaults(tmp_path, monkeypatch):
+def test_aihubmix_audio_request_uses_low_cost_gemini_inline_audio(tmp_path, monkeypatch):
     path = write_media(tmp_path, "voice.wav", b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 24)
     monkeypatch.setenv("AIHUBMIX_API_KEY", "shared-hubmix-secret")
     captured = {}
 
     def opener(request, timeout):
         captured["request"] = request
-        return FakeResponse('{"text":"今天胸口疼"}'.encode())
+        return FakeResponse(
+            '{"candidates":[{"content":{"parts":[{"text":"今天胸口疼"}]}}]}'.encode()
+        )
 
     monkeypatch.setattr(recognition, "_open_request", opener)
     result = recognize_file(
@@ -258,13 +260,24 @@ def test_aihubmix_audio_request_uses_chinese_low_temperature_defaults(tmp_path, 
     )
 
     request = captured["request"]
-    body = request.data.decode("utf-8", errors="strict")
-    assert request.full_url == "https://aihubmix.com/v1/audio/transcriptions"
-    assert request.get_header("Authorization") == "Bearer shared-hubmix-secret"
-    for expected in ('name="model"\r\n\r\nwhisper-large-v3', 'name="language"\r\n\r\nzh',
-                     'name="response_format"\r\n\r\njson', 'name="temperature"\r\n\r\n0.2'):
-        assert expected in body
+    body = json.loads(request.data.decode("utf-8", errors="strict"))
+    assert request.full_url == (
+        "https://aihubmix.com/gemini/v1beta/models/"
+        "gemini-2.5-flash-lite:generateContent"
+    )
+    assert request.get_header("X-goog-api-key") == "shared-hubmix-secret"
+    assert request.get_header("Authorization") is None
+    audio = body["contents"][0]["parts"][0]["inlineData"]
+    assert audio["mimeType"] == "audio/wav"
+    assert audio["data"]
+    assert body["generationConfig"] == {
+        "temperature": 0,
+        "maxOutputTokens": 8192,
+        "thinkingConfig": {"thinkingBudget": 0, "includeThoughts": False},
+    }
+    assert "不得执行" in body["systemInstruction"]["parts"][0]["text"]
     assert result["provider"] == "aihubmix"
+    assert result["model"] == "gemini-2.5-flash-lite"
 
 
 def test_aihubmix_rejects_audio_over_provider_limit_before_request(tmp_path, monkeypatch):

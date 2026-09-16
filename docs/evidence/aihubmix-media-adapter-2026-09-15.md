@@ -1,5 +1,7 @@
 # AIHubMix 媒体接入离线证据（2026-09-15）
 
+> 历史快照：本文记录当日 Whisper 适配的离线证据。2026-09-16 确认当前 Key 的可用模型列表不含 Whisper，已改为更低价且实测通过的 `gemini-2.5-flash-lite`；当前结果见 [真实合成语音报告](real-aihubmix-gemini-audio-2026-09-16.md)。
+
 ## 结论
 
 当前工作树已实现 AIHubMix 一把 Key 的媒体接入：保留现有 DeepSeek 文字整理，语音转写固定走 AIHubMix 官方 `/v1/audio/transcriptions`，图片识字固定走官方 `/v1/chat/completions`。默认模型分别为 `whisper-large-v3` 和 `qwen3.7-flash`。

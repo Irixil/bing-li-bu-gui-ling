@@ -1,23 +1,23 @@
 # 病历不归零 MVP
 
 > 本页由 DZ 项目账本生成；真实记录保存在 `.dz/state.json`。
-<!-- DZ-CURRENT-VIEW:c835c846182c6a89565263b4f2dd77635aea0a81ec99e846509fb9107eff8da0 -->
+<!-- DZ-CURRENT-VIEW:37f377c6f544150aee3d26aeafcf882425ec2f0997345abaf00febebb47bf75a -->
 
 ## 现在做到哪
-- 当前情况：等用户决定
+- 当前情况：正在继续
 - 产品情况：尚未判断
-- 当前进度：等用户决定
+- 当前进度：先把想法说清楚
 - 流程检查位置（不代替实际进度）：先把想法说清楚
 - 当前约定指纹：无
 - 当前检查对象：无
-- 下一步：在 AIHubMix 控制台确认当前 Key 允许 whisper-large-v3，并确认余额、IP 白名单和模型白名单；修正后只复测一次仓库合成语音。
-- 等待内容：AIHubMix 控制台中的 whisper-large-v3 权限/余额限制已修正；无需把 Key 发到聊天。
+- 下一步：完成 README 与证据更新，核对密钥未入库后提交并推送当前 GitHub 分支。
+- 等待内容：无
 - 等待决定的风险：无
 - 正在使用的动作通行条：无
 - 阻塞原因：无
 - 阻塞类型：无
 - 恢复条件：无
-- 最后更新：2026-09-15T10:01:54+00:00
+- 最后更新：2026-09-16T07:06:56+00:00
 
 ## 现在按哪个版本做
 - 想解决的事：还没写下来；当前版本：docs/sdlc/intent.md
@@ -36,6 +36,7 @@
 - REAL-DEEPSEEK-C001-DIAG：诊断修复后再次运行一条 DeepSeek 合成样例（low，accepted，动作已完成）
 - REAL-DEEPSEEK-HTTP-C001：当前项目真实文字 HTTP 链路请求（low，accepted，动作已完成）
 - REAL-AIHUBMIX-MEDIA-HTTP-20260915：使用本地 AIHubMix Key 跑一次合成媒体真实 HTTP 自测（low，accepted，动作失败）
+- REAL-AIHUBMIX-GEMINI-AUDIO-20260916：用低价 Gemini 轻量模型复测一次合成语音（low，accepted，动作已完成）
 
 ## 最近证据
 以下是历史索引，不代表当前版本已通过；以相同检查对象和当前要求下的有效证据为准。

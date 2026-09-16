@@ -1,13 +1,13 @@
 # 拿到 Demo 后如何在线自测
 
-当前集成候选在 `codex/integration-demo-version`，PR #8 目标为 main；main 合并前，请克隆该分支。此指南的命令会访问你配置的真实供应商，产生请求用量。测试数据明确为合成资料，测试记录会留在本地数据库中。
+当前后端媒体候选在 `codex/backend-integration-2026-09-14`；main 合并前，请克隆该分支。此指南的命令会访问你配置的真实供应商，产生请求用量。测试数据明确为合成资料，测试记录会留在本地数据库中。
 
 ## 1. 安装并填配置
 
 需要 Python 3.12 和 Git。无需前端构建工具。安装项目依赖后，系统没有 FFmpeg 时会使用固定版本的项目备用二进制，供浏览器 WebM 录音转换。
 
 ```bash
-git clone --branch codex/integration-demo-version https://github.com/Irixil/bing-li-bu-gui-ling.git
+git clone --branch codex/backend-integration-2026-09-14 https://github.com/Irixil/bing-li-bu-gui-ling.git
 cd bing-li-bu-gui-ling
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -22,9 +22,9 @@ Windows PowerShell 用 `py -3.12 -m venv .venv` 和 `.venv\Scripts\Activate.ps1`
 | 能力 | 需要填写 |
 |---|---|
 | 文字整理 | `MODELSCOPE_ACCESS_TOKEN`；确认 `MODELSCOPE_MODEL` 是该账号可用的模型 ID |
-| 语音转写和照片识字 | `MEDIA_RECOGNITION_PROVIDER=aihubmix`、`AIHUBMIX_API_KEY`；默认分别使用 `whisper-large-v3` 和 `qwen3.7-flash` |
+| 语音转写和照片识字 | `MEDIA_RECOGNITION_PROVIDER=aihubmix`、`AIHUBMIX_API_KEY`；默认分别使用 `gemini-2.5-flash-lite` 和 `qwen3.7-flash` |
 
-AIHubMix ASR 使用 OpenAI 兼容的文件转写接口，支持浏览器录制的 WebM 和项目合成 WAV；原件不会被覆盖，仅把机器转写作为待核对初稿，再执行危险扫描和记录关联。此版本是结束录音后转写，没有实现边说边显示字幕，也没有改 P2 VAD。原 DashScope WebSocket 与通用 OpenAI-compatible 配置仍保留为备选，详见 [模型接入说明](MODEL-CONNECTION.md)。
+AIHubMix ASR 使用 Gemini 原生 `generateContent` 接口的内联音频；支持浏览器录制的 WebM 和项目合成 WAV，单文件上限 20MB。原件不会被覆盖，仅把机器转写作为待核对初稿，再执行危险扫描和记录关联。此版本是结束录音后转写，没有实现边说边显示字幕，也没有改 P2 VAD。原 DashScope WebSocket 与通用 OpenAI-compatible 配置仍保留为备选，详见 [模型接入说明](MODEL-CONNECTION.md)。
 
 ```bash
 python -m scripts.start_demo --check-config
@@ -83,7 +83,8 @@ python -m scripts.selftest --allow-mock --audio data/synthetic/selftest/voice.wa
 - [WebSocket 接入流程和域名](https://help.aliyun.com/zh/model-studio/fun-asr-realtime-websocket-api)
 - [客户端 run-task / finish-task 事件](https://help.aliyun.com/zh/model-studio/fun-asr-client-events)
 - [服务端最终句和任务状态事件](https://help.aliyun.com/zh/model-studio/fun-asr-server-events)
-- [AIHubMix STT 语音转文本](https://docs.aihubmix.com/cn/api/STT)
+- [AIHubMix Gemini 多媒体指南](https://docs.aihubmix.com/cn/api/Gemini-Guides)
+- [Gemini 2.5 Flash Lite 模型页与价格](https://aihubmix.com/model/gemini-2.5-flash-lite)
 - [AIHubMix 图像理解](https://docs.aihubmix.com/cn/api/vision)
 
-核对日期：2026-09-15。必须匹配账号的模型权限；官方协议核对与替身测试不代替真实 Key 的请求验收。
+核对日期：2026-09-16。必须匹配账号的模型权限；官方协议核对与替身测试不代替真实 Key 的请求验收。当前仅完成一次合成 WAV 真实转写，不能代替本文第 2–3 节的完整三轮和浏览器验收。

@@ -18,10 +18,14 @@ MEDIA_RECOGNITION_TIMEOUT_SECONDS=60
 
 | 能力 | 默认模型 | 当前选择原因 |
 |---|---|---|
-| 中文语音转写 | `whisper-large-v3` | 官方文档明确推荐中文使用；请求固定带 `language=zh`、`temperature=0.2` |
+| 中文语音转写 | `gemini-2.5-flash-lite` | 当前 Key 已开放、可直接理解音频，且比当前账号不可用的 Whisper 通道更便宜 |
 | 照片识字 | `qwen3.7-flash` | 支持视觉，价格低；OCR 请求使用高细节图片输入 |
 
-如需试其他模型，只覆盖 `MEDIA_ASR_MODEL` 或 `MEDIA_OCR_MODEL`，不必重复 Key。AIHubMix 音频接口上限为 25MB，超过时应用会在本地明确拒绝，不产生无效请求。模型价格和可用性会变化，上线前以 AIHubMix 模型页为准。
+语音使用 AIHubMix 的 Gemini 原生 HTTPS `generateContent` 接口，在 `inlineData` 中携带原音频，输出只接受转写文字。系统指令把音频明确视为不可信的待转写材料，不执行音频内的指令，也不补写、总结或给医疗建议。AIHubMix 文档的内联多媒体上限为 20MB；应用会在超限时本地拒绝，不产生无效请求。
+
+当前标价为音频输入 `$0.3/百万 token`；按 Gemini 静态音频每秒 32 token 估算，纯音频输入约 `$0.035/小时`，实际账单还包含提示和输出文字。2026-09-16 的 6.892 秒合成 WAV 实测扣费 `$0.000080`。价格和可用性会变化，上线前查 [AIHubMix 模型页](https://aihubmix.com/model/gemini-2.5-flash-lite) 和 Key 的 `/v1/models` 列表。公开模型广场有 Whisper 不代表当前账号已获得该通道。
+
+如需试其他模型，只覆盖 `MEDIA_ASR_MODEL` 或 `MEDIA_OCR_MODEL`，不必重复 Key。ASR 覆盖必须是该 Key 已开放且能接收音频的 Gemini 模型；不对未开通模型自动重试或切换。真实请求结果见 [2026-09-16 合成语音报告](evidence/real-aihubmix-gemini-audio-2026-09-16.md)。
 
 这条接入只用于普通单据、处方、检查单上的可见文字和普通语音转写。心电图、CT/MRI、超声、病理等复杂医学影像仍只保留原件，不能作为 OCR 成功或诊断结论。
 

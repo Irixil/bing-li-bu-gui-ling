@@ -2,7 +2,7 @@
 
 帮助老人把自己的健康情况记下来，整理成有原文、有来源、时间不确定也不会乱填的记录，在复诊时带着连续资料去沟通。
 
-当前集成候选包含 **老人端网页 + 文本后端 + 本地媒体后端 + 在线自测入口**。媒体支持语音/照片原件上传、持久化、识别任务、识别失败保留、危险扫描和 Event 关联；完整三轮在线浏览器验收仍待完成。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
+当前集成候选包含 **老人端网页 + 文本后端 + 本地媒体后端 + 在线自测入口**。媒体支持语音/照片原件上传、持久化、识别任务、识别失败保留、危险扫描和 Event 关联；AIHubMix 的合成 WAV 语音转写与合成 PNG 识字均已取得真实请求成功证据，完整三轮在线浏览器验收仍待完成。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
 
 **团队只使用本仓库。** 历史多版本总包不属于当前开发包。代码底座保留最新持久化版本已有的记录、整理、核对、修订、历史和交接卡能力。
 
@@ -21,7 +21,7 @@
 
 ## 十分钟启动
 
-比赛演示请先按 [在线启动与完整自测指南](docs/DEMO-SELFTEST.md) 配置真实文字、ASR、OCR 服务。当前候选分支为 `codex/integration-demo-version`（PR #8），未合入 main。以下底层命令用于开发联调。
+比赛演示请先按 [在线启动与完整自测指南](docs/DEMO-SELFTEST.md) 配置真实文字、ASR、OCR 服务。当前后端媒体候选分支为 `codex/backend-integration-2026-09-14`；合入 main 前以该分支为准。以下底层命令用于开发联调。
 
 安装 Python **3.12** 与 Git。在要放项目的目录中执行：
 
@@ -113,7 +113,7 @@ curl http://127.0.0.1:18768/api/media/capabilities
 5. 使用当前 `media.version` 调 `POST /api/media/{media_id}/recognize`。
 6. 轮询 `GET /api/media/{media_id}`，识别成功后查看 `media.recognition`；失败时原件仍可读。
 
-媒体在 `.env` 显式配置 `MEDIA_RECOGNITION_PROVIDER=mock` 时使用明确标记的 Mock 识别；未配置或配置真实 provider 时不会静默回退。当前支持 `MEDIA_RECOGNITION_PROVIDER=aihubmix` 配合一条 `AIHUBMIX_API_KEY`，默认用 `whisper-large-v3` 做中文语音转写、`qwen3.7-flash` 做照片识字；文字整理仍可保留已经验证的 DeepSeek。`feaf182` 已用仓库合成 WAV/PNG 跑通一次其他供应商的真实 ASR/OCR 全链路；AIHubMix 路线还需本地 Key 完成首次真实请求。手机、真实患者、通用格式、临床和公网生产仍未验证。详细配置见 [模型接入说明](docs/MODEL-CONNECTION.md)，字段、状态、错误码和版本语义见 [docs/API.md](docs/API.md)；后端 QA 入口见 [docs/qa/README.md](docs/qa/README.md)。
+媒体在 `.env` 显式配置 `MEDIA_RECOGNITION_PROVIDER=mock` 时使用明确标记的 Mock 识别；未配置或配置真实 provider 时不会静默回退。当前支持 `MEDIA_RECOGNITION_PROVIDER=aihubmix` 配合一条 `AIHUBMIX_API_KEY`，默认用低价的 `gemini-2.5-flash-lite` 做中文语音转写、`qwen3.7-flash` 做照片识字；文字整理仍使用已验证的 DeepSeek。2026-09-16 的一次合成 WAV 真实请求成功，命中“胸口疼”和“喘不上气”，账单为 `$0.000080`；前一日同一 Key 的合成 PNG OCR 也已成功。这只证明两个指定合成样本与当前账号可用；手机 WebM、真实患者、通用格式、临床和公网生产仍未验证。详细配置见 [模型接入说明](docs/MODEL-CONNECTION.md)，真实请求证据见 [AIHubMix Gemini 语音报告](docs/evidence/real-aihubmix-gemini-audio-2026-09-16.md)，字段、状态、错误码和版本语义见 [docs/API.md](docs/API.md)。
 
 ## 团队从哪里开始
 
