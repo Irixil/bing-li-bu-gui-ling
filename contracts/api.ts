@@ -204,7 +204,7 @@ export type ReviseEventRequest = {
 
 export type CreateHandoffRequest = Record<string, never>;
 
-export type HealthResponse = {
+export type LegacyHealthResponse = {
   ok: true;
   service: "medical-handoff-p0";
   provider: string;
@@ -212,6 +212,91 @@ export type HealthResponse = {
   mode: "local_single_household";
   schema_version: SchemaVersion;
   session_token: string;
+};
+
+export type LocalFirstHealthResponse = {
+  ok: true;
+  service: "bingli-beta";
+  provider: string;
+  storage: "encrypted_on_device";
+  mode: "local_first";
+  schema_version: SchemaVersion;
+  access_configured: boolean;
+};
+
+export type HealthResponse = LegacyHealthResponse | LocalFirstHealthResponse;
+
+export type AppConfigResponse = {
+  ok: true;
+  mode: "local_first";
+  access_configured: boolean;
+  cloud_backup_configured: boolean;
+  product_name: "病历不归零·内测版";
+  data_location: "this_device";
+  backup_mode: "encrypted_archive";
+};
+
+export type AppSessionResponse =
+  | { ok: true; authenticated: false }
+  | { ok: true; authenticated: true; csrf_token: string; expires_at: number };
+
+export type CloudBackupObject = {
+  object_key: string;
+  size: number;
+  last_modified: string | null;
+  etag: string | null;
+};
+
+export type CloudBackupGrant = {
+  object_key: string;
+  method: "PUT" | "GET";
+  url: string;
+  headers: Record<string, string>;
+  expires_in: number;
+  size?: number;
+  sha256?: string;
+};
+
+export type CreateCloudBackupGrantRequest = {
+  size: number;
+  sha256: string;
+};
+
+export type CreateCloudBackupDownloadRequest = {
+  object_key: string;
+};
+
+export type CloudBackupListResponse = { ok: true; backups: CloudBackupObject[] };
+export type CloudBackupGrantResponse = { ok: true; grant: CloudBackupGrant };
+
+export type StatelessOrganizeRequest = {
+  record_id: string;
+  raw_text: string;
+  source_kind: SourceKind;
+  recorded_at: string;
+  occurred_time?: string | null;
+  history?: Array<Pick<Event, "record_id" | "raw_text" | "source_kind" | "recorded_at" | "occurred_time">>;
+  consent: true;
+};
+
+export type StatelessOrganizeSuccess = LocalSafety & OrganizeResultMeta & {
+  ok: true;
+  ai_failed: false;
+  output: AiDraft;
+  raw_text_preserved_on_device: true;
+  local_safety: LocalSafety;
+};
+
+export type StatelessMediaRecognitionSuccess = {
+  ok: true;
+  recognition: {
+    text: string;
+    provider: string;
+    model: string;
+    is_mock: boolean;
+    attempt_id: string;
+  };
+  local_safety: LocalSafety;
 };
 
 export type SaveResponse = {

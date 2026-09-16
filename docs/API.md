@@ -1,8 +1,35 @@
-# 前后端接口合同 v0.4
+# 前后端接口合同 v0.5
+
+## 内测版的正式边界
+
+`APP_MODE=local_first` 是内测版的正式运行模式。记录、修订历史、媒体原件和备份由浏览器的 Web Crypto + IndexedDB 处理，后端不创建 SQLite 健康数据库，并对旧 `/api/events`、`/api/media`、`/api/handoffs` 服务端路由返回 `404 legacy_api_disabled`。前端保留同形本地请求层，用于降低旧界面迁移风险；这些本地请求不会离开浏览器。
+
+函数服务只提供以下无状态能力：
+
+- `GET /health`：返回 `mode:"local_first"` 和 `storage:"encrypted_on_device"`，不返回旧 `session_token`。
+- `GET /api/app/config`：返回产品名、数据位置、访问保护和私有云备份是否配置。
+- `GET /api/app/session`：返回当前浏览器是否已登录；已登录时同时返回 CSRF 令牌和过期时间。
+- `POST /api/app/login`：请求 `{"password":"..."}`，成功设置已签名、HttpOnly、SameSite=Strict 的 Cookie。
+- `POST /api/app/logout`：需 Cookie + `X-CSRF-Token`，清除当前 Cookie。
+- `POST /api/ai/organize`：需 Cookie + CSRF + `consent:true`；只返回经验证的草稿和本地安全字段，不写数据库。
+- `POST /api/ai/media/recognize`：需 Cookie + CSRF，`multipart/form-data` 严格包含 `kind` / `content_type` / `attempt_id` / `file`；原件只写入临时文件，请求完成或失败后删除。
+- `GET /api/backups`：需登录 Cookie；只列出私有 TOS 中 `backups/` 下密文对象的名称、大小和时间，不返回内容。
+- `POST /api/backups/upload-grant`：需 Cookie + CSRF，请求 `size` 与 64 位十六进制 `sha256`；返回服务端生成对象名及最多 15 分钟、默认 5 分钟有效的 TOS `PUT` 地址。浏览器直接上传已经加密的 `.bingli` 包。
+- `POST /api/backups/download-grant`：需 Cookie + CSRF，请求 `object_key`；只允许当前备份前缀内的 `.bingli` 对象，返回短时 `GET` 地址。下载后仍须在浏览器验证恢复口令并预览，不能静默覆盖当前设备。
+
+`POST /api/ai/organize` 的文字请求最多 10000 字符，历史证据最多 20 条；媒体默认最大 20 MiB，可用 `APP_AI_MEDIA_MAX_BYTES` 下调，不可超过 25 MiB。付费 AI 失败后不在函数内自动重试。密文备份最大 100 MiB；签名地址属于短时持有者权限，不能写入日志、反馈或长期存储。
+
+生产环境的 TOS 签名使用函数所绑定 IAM 角色的请求级 STS 凭据（`X-Faas-Access-Key-Id`、`X-Faas-Secret-Access-Key`、`X-Faas-Session-Token`），不配置长期 TOS AK/SK。角色策略必须限制到目标私有 Bucket 的 `backups/` 前缀。函数到 TOS 的列表请求使用同地域内网 Endpoint；签发给浏览器的短链接使用公网 HTTPS Endpoint。
+
+下文的 SQLite/分片媒体合同仅保留为旧开发模式和回归测试合同，不是公网内测版的数据落盘设计。
 
 本页描述现有文本接口，以及已经由 `backend/server.py` 和 HTTP 专项测试固定的媒体接口。启动已经连接本地文件存储、SQLite 媒体状态和识别模块；需显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 才启用离线 Mock，未配置 provider 不会静默回退。`feaf182` 已用仓库合成 WAV/PNG 完成一次真实 ASR/OCR 全链路验收；这不证明浏览器 WebM、手机、真实患者、临床准确率或生产部署可用。
 
-服务地址默认 `http://127.0.0.1:18768`。所有 JSON UTF-8。JSON 写请求带 `Content-Type: application/json` 和 `X-Session-Token`（从 `/health` 的 `session_token` 读取）；媒体上传按下文使用 `multipart/form-data`。文本记录只有创建要求 `Idempotency-Key`；媒体创建、分片、完成和识别启动都要求各自的 `Idempotency-Key`。服务重启后重新获取 token。
+后端 API 地址默认 `http://127.0.0.1:18768`；使用者前端默认 `http://127.0.0.1:5173`。两者是独立服务，产品只分享前端地址。
+
+本地优先内测模式使用签名 HttpOnly Cookie、精确 `ALLOWED_ORIGIN` 和 CSRF 令牌保护 `/api/app/*`、`/api/ai/*` 和 `/api/backups/*`。下文的 `X-Session-Token` 和 SQLite 事件 API 是历史兼容模式；`APP_MODE=local_first` 时不用它们保存健康资料。
+
+所有 JSON 使用 UTF-8。媒体上传按下文使用 `multipart/form-data`。文本记录只有创建要求 `Idempotency-Key`；媒体创建、分片、完成和识别启动都要求各自的 `Idempotency-Key`。
 
 `organize`、`review`、`revise` 的 `expected_version` 都必须是正整数。缺失、布尔值、字符串、零或负数返回 `400 expected_version_must_positive_integer`；与当前版本不一致返回 `409 stale_version`。服务器不会替调用方自动选择最新版本。
 

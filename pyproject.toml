@@ -1,0 +1,13 @@
+[project]
+name = "bingli-beta"
+version = "0.1.0"
+description = "病历不归零·内测版"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"

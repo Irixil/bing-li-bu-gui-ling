@@ -1,29 +1,40 @@
-# 病历不归零 · 比赛 MVP
+# 病历不归零·内测版
 
-帮助老人把自己的健康情况记下来，整理成有原文、有来源、时间不确定也不会乱填的记录，在复诊时带着连续资料去沟通。
+一个面向个人和家庭的健康记录工具：先完整保留原话、录音和照片，再在使用者明确同意后调用 AI 整理。AI 输出始终是待核对草稿，不是诊断、医嘱或用药决定。
 
-当前集成候选包含 **老人端网页 + 文本后端 + 本地媒体后端 + 在线自测入口**。媒体支持语音/照片原件上传、持久化、识别任务、识别失败保留、危险扫描和 Event 关联；AIHubMix 的合成 WAV 语音转写与合成 PNG 识字均已取得真实请求成功证据，完整三轮在线浏览器验收仍待完成。商业方向暂定 2C 订阅，未验证付费意愿，未做支付。
+## 当前状态
 
-**团队只使用本仓库。** 历史多版本总包不属于当前开发包。代码底座保留最新持久化版本已有的记录、整理、核对、修订、历史和交接卡能力。
+项目已从比赛演示架构转向内测版架构。代码在一个仓库中同时保留前端和后端，运行时是两个独立服务：使用者打开前端页面，前端再调用后端 API。当前代码已完成本地加密主数据、所有者访问保护、无状态 AI 边界、加密备份下载/预览/恢复、私有 TOS 短时授权接线、时间线筛选、修订历史、选中删除、就诊交接材料和内测问题记录。
 
-## 两位后端同学从这里开始
+仍未宣称完成的部分：
 
-用 Git 克隆仓库并在 Codex 打开，告诉它“我负责任务 A”或“我负责任务 B”。先读 [团队入口与可复制的开场话](docs/team/README.md)，Codex 会按根目录 AGENTS.md 找到对应要求，核对现状并说明路线，确认后再开发。
+- 分别部署前端 Web 服务和后端 API 应用，并设置它们的正式地址；
+- 新建私有 TOS Bucket、配置最小权限身份和浏览器 CORS，并在真实 Bucket 验证密文上传/下载；
+- 真实手机录音、照片、断网与空间不足验收；
+- 实际部署后的 R1–R13 全量验收和 `main` 发布。
 
-| 选择 | 负责内容 | 任务单 |
-|---|---|---|
-| 任务 A | 文件保存／读取、SQLite 状态、重试与幂等、Event 关联、API、备份恢复 | [TASK-A-MEDIA.md](docs/team/TASK-A-MEDIA.md) |
-| 任务 B | 语音转文字、照片识字、真实服务与失败处理、模型证据 | [TASK-B-RECOGNITION.md](docs/team/TASK-B-RECOGNITION.md) |
+## 数据怎么流动
 
-共同阅读 [接口草案](docs/team/MEDIA-CONTRACT.md) 与 [提交合并指南](docs/team/INTEGRATION.md)。两人分别推分支、发 PR，集成人按依赖顺序合并；不要上传整个文件夹覆盖仓库。
+```mermaid
+flowchart LR
+  P[使用者打开前端 Web] --> U[文字 / 录音 / 照片]
+  U --> E[浏览器 Web Crypto 加密]
+  E --> I[(当前设备 IndexedDB)]
+  I --> B[加密备份文件]
+  B -. 开通后 .-> T[(私有 TOS 密文)]
+  I --> C{使用者确认外发？}
+  C -- 否 --> I
+  C -- 文字 --> D[独立后端 API] --> DS[DeepSeek]
+  C -- 录音 / 照片 --> A[后端临时处理] --> AH[AIHubMix]
+  DS --> I
+  AH --> I
+```
 
-录音已确认“长时间无声先提醒，无回应再暂停，保留内容并可接着说”。具体时间和检测方法待真机验证；此前 **60 秒强制结束要求已撤回**，不得写成默认值或拒收规则。
+恢复口令只在当前设备用于包装/解包数据密钥，不上传到函数服务或 TOS。丢失恢复口令时，服务器不能代为解密备份。
 
-## 十分钟启动
+## 快速启动
 
-比赛演示请先按 [在线启动与完整自测指南](docs/DEMO-SELFTEST.md) 配置真实文字、ASR、OCR 服务。当前后端媒体候选分支为 `codex/backend-integration-2026-09-14`；合入 main 前以该分支为准。以下底层命令用于开发联调。
-
-安装 Python **3.12** 与 Git。在要放项目的目录中执行：
+需要 Python 3.12 和 Node.js 22+。
 
 ```bash
 git clone https://github.com/Irixil/bing-li-bu-gui-ling.git
@@ -31,122 +42,79 @@ cd bing-li-bu-gui-ling
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-python -m backend.run_local
+cp .env.example .env
 ```
 
-Windows PowerShell 把创建和启用环境两步换为：
+在 `.env` 中填写：
 
-```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-```
+- `APP_OWNER_PASSWORD` 或 `APP_OWNER_PASSWORD_SHA256`：保护在线 AI/备份能力；
+- `APP_SESSION_SECRET`：至少 32 字节的随机值；
+- `DEEPSEEK_API_KEY`：文字整理；
+- `AIHUBMIX_API_KEY`：语音转写和照片识字。
 
-如 PowerShell 不允许执行激活脚本，可直接使用 `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` 与 `.venv\Scripts\python.exe -m backend.run_local`。首次装依赖需要联网。
+启用私有云备份时需给函数绑定最小权限 IAM 角色，并设置 `TOS_REGION`、`TOS_ENDPOINT`、`TOS_PUBLIC_ENDPOINT` 和 `TOS_BUCKET`。veFaaS 会在每次请求中注入短期 STS 凭据，线上不保存长期 TOS AK/SK；角色权限只允许目标 Bucket 的备份前缀。
 
-访问 <http://127.0.0.1:18768/health> 应看到 `ok: true`。本分支已包含老人端静态页面，首页 `/` 可直接打开。数据库自动保存在 `runtime/records.sqlite3`。
-
-`.env.example` 现为在线配置模板，需填真实凭据；只有显式 `--offline` 才使用无需密钥的 Mock，页面标记为离线演示。未配置媒体 provider 时识别返回 `provider_not_configured`，不会静默改用 Mock。比赛启动入口配置三项有限资源保护边界；底层开发入口未配置时可读取能力端点，但媒体写入返回 `503 media_limits_not_configured`。密钥不进仓库。本版本真实模型调用已有有限成功证据，范围见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)，不代表完整语义或临床验收。
-
-现在也支持 `MODEL_PROVIDER=openai_compatible` 接 OpenAI Chat Completions 兼容中转站，配置 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 即可。魔搭和 DeepSeek 旧配置保持兼容。配置方法和实际联调状态见 [模型接入说明](docs/MODEL-CONNECTION.md) 与 [联调报告](docs/MODEL-INTEGRATION.md)。
-
-2026-09-12 用户绑定阿里云后，按其新选择接通魔搭 `deepseek-ai/DeepSeek-V4-Pro-0813`，已取得通过应用校验的真实输出；首次单条耗时约 41.9 秒。此前 V4.1-Flash 的无可用提供方错误保留为历史证据。连通成功不等于完整语义或临床验收，批次结果和剩余问题以联调报告为准。
-
-2026-09-12 C 部分修订采用“结构整理、完整原文保留”，模型负责分类和标记，暂不生成自由摘要。提示词为 `prompt-v0.5`，离线危险规则为 `offline-danger-v2`，独立专业复核候选为 `offline-review-flags-v1`。修复与第一性原理对抗审查见 [docs/C-REVIEW.md](docs/C-REVIEW.md)；AI 起草的规则与医学待审清单见 [临床规则草案](docs/CLINICAL-RULE-DRAFT.md)，阶段计时仅作禁用占位。C 的合并步骤、共享字段审阅与验证入口见 [HANDOFF-C.md](HANDOFF-C.md)。
-
-另开一个终端，进入同一目录并启用环境，即可运行：
+先检查配置（不调用模型）：
 
 ```bash
-# 自动启动临时本地服务，完整演示公开病例；不会污染常用数据库
-python -m scripts.demo
+python -m scripts.start_app --check-config
+```
 
-# 导入已经启动的展示服务，供你开发的前端查看
-python -m scripts.demo --base-url http://127.0.0.1:18768
+一条命令同时启动两个独立服务：
 
-# 后端全部测试
+```bash
+python -m scripts.start_dev
+```
+
+请打开前端页面 <http://127.0.0.1:5173/>。后端 API 在 <http://127.0.0.1:18768/>，不需要手动打开。
+
+需要分开启动时，使用两个终端：
+
+```bash
+python -m scripts.start_backend
+python -m scripts.start_frontend
+```
+
+首次打开会在当前浏览器建立加密仓库。浏览器恢复口令与网站访问密码是两个不同的安全边界。
+
+## 低成本 AI 组合
+
+- 文字整理：DeepSeek `deepseek-chat`，只发送使用者当次选中的原文。
+- 语音转写：AIHubMix 默认 `gemini-2.5-flash-lite`。
+- 照片识字：AIHubMix 默认 `qwen3.7-flash`。
+- 本地离线路径：不同意外发时，原话/原件仍可保存、修订、筛选、打印和备份。
+
+所有付费请求都由使用者单次确认触发，失败后不自动重试。具体费用以各服务商当时账单为准。
+
+## 验证
+
+```bash
+# Python 全量回归
 python -m pytest -q
 
-# 40 条合成用例的结构与指定安全规则回归
-python -m backend.evaluate_mock
+# 浏览器逻辑、加密仓库与安全规则
+node --test tests/*.test.cjs
 
-# 新 11 条 C 部分合成用例的自动断言；报告仍标记需人工复核项
-python -m backend.evaluate_mock --dataset data/synthetic/c-model-smoke.json --strict
-
-# 配好本地 .env 后验证真实模型（脚本名兼容旧命名，也支持 DeepSeek）
-python -m backend.evaluate_modelscope --dataset data/synthetic/c-model-smoke.json --out runtime/evaluations/c-real-model.json
-
-# 对常用数据库做一致性备份
-python -m scripts.backup
-
-# 一次执行 B 侧发布门槛，并输出机器可读 JSON（需先完成 npm ci）
-python -m scripts.verify_b_release
-
-# 检查前端 TypeScript 接口合同（首次需安装 Node.js 22 与依赖）
-npm ci
+# 前后端接口类型
 npm run check:contracts
-
-# 检查媒体能力；写入口启用前必须看到 enabled: true
-curl http://127.0.0.1:18768/api/media/capabilities
 ```
 
-导入脚本会保存、整理并模拟点击“核对记录准确”，生成交接材料。它是软件流程演示，不代表老人或医生实际参与了确认。重复导入同一份未改数据不会重复建记录。
+2026-09-16 当前工作树验证结果：Python `765 passed`，Node `30 passed`，TypeScript 合同检查通过。真实本机浏览器也已从前端 `5173` 完成加密仓库、合成记录、刷新解锁和跨端口后端登录检查。这些结果证明当前代码回归，不替代真实手机和正式云环境验收。
 
-## 现在能做什么
+## 安全约束
 
-原文先入 SQLite，再执行本地危险规则，再请求 AI。模型断网、超时、非法 JSON 或其他异常时，原文和审计保留；若命中胸痛、呼吸困难等规则，仍返回固定危险提醒。成功结果继续经过原有结构、来源、时间和安全检查。
+- `APP_MODE=local_first` 时，旧的 SQLite 健康数据 API 关闭，不用于公网保存用户健康资料。
+- 在线 AI 接口需要签名、过期的 HttpOnly SameSite Cookie、精确前端来源和 CSRF 令牌。
+- 函数处理的媒体写入临时文件，完成或失败后删除，不写入云端健康数据库。
+- 离线危险提醒是有限描述匹配，不是医学评估；“未命中”不等于“正常”或“无风险”。
+- 删除当前设备的记录不会自动改写旧的加密备份；界面必须在删除前说明这一点。
 
-后端流程已通过自动检查：保存 → 整理 → 核对记录 → 历史 → 修订 → 就诊交接材料；媒体流程也已通过本地文件/SQLite/Mock 的上传 → 识别 → 危险扫描 → Event 关联回归。**网页上的完整比赛 demo 尚未通过验收**，仍需真实服务与完整逐按钮演练。
+## 项目文档
 
-本机演示只面向一个老人、一份本地数据库。服务只监听 127.0.0.1，旧兼容读取路径没有强制账号隔离；不要把它直接发布成公网多人服务。
+- [已确认的前后端分离规格](docs/sdlc/spec-split-web-api.md)
+- [已确认的单仓库双服务方案](docs/sdlc/plan-split-web-api.md)
+- [AI 模型接入](docs/MODEL-CONNECTION.md)
+- [当前 API 合同](docs/API.md)
+- [验证记录](docs/VALIDATION.md)
 
-本地规则只识别有限表达，误报和漏报都可能发生。“未命中”不等于“医学正常”；老人核对记录也不能消除医学风险。产品不诊断、不自动改药。
-
-## 媒体后端当前状态
-
-媒体后端由 `backend/media_store.py`、`backend/store.py`、`backend/media_service.py`、`backend/media_backend.py` 和 `backend/server.py` 共同提供。前端按 [API 合同](docs/API.md) 和 [媒体接线说明](frontend/README.md) 接入，不需要读取 SQLite 表。
-
-最短链路是：
-
-1. `GET /api/media/capabilities`，确认 `capabilities.enabled`。
-2. `POST /api/media/uploads` 创建元数据。
-3. 将文件分片发送到 `/api/media/uploads/{upload_id}/parts/{index}`。
-4. `POST /api/media/uploads/{upload_id}/complete` 完成原件发布。
-5. 使用当前 `media.version` 调 `POST /api/media/{media_id}/recognize`。
-6. 轮询 `GET /api/media/{media_id}`，识别成功后查看 `media.recognition`；失败时原件仍可读。
-
-媒体在 `.env` 显式配置 `MEDIA_RECOGNITION_PROVIDER=mock` 时使用明确标记的 Mock 识别；未配置或配置真实 provider 时不会静默回退。当前支持 `MEDIA_RECOGNITION_PROVIDER=aihubmix` 配合一条 `AIHUBMIX_API_KEY`，默认用低价的 `gemini-2.5-flash-lite` 做中文语音转写、`qwen3.7-flash` 做照片识字；文字整理仍使用已验证的 DeepSeek。2026-09-16 的一次合成 WAV 真实请求成功，命中“胸口疼”和“喘不上气”，账单为 `$0.000080`；前一日同一 Key 的合成 PNG OCR 也已成功。这只证明两个指定合成样本与当前账号可用；手机 WebM、真实患者、通用格式、临床和公网生产仍未验证。详细配置见 [模型接入说明](docs/MODEL-CONNECTION.md)，真实请求证据见 [AIHubMix Gemini 语音报告](docs/evidence/real-aihubmix-gemini-audio-2026-09-16.md)，字段、状态、错误码和版本语义见 [docs/API.md](docs/API.md)。
-
-## 团队从哪里开始
-
-| 文件/目录 | 用途 |
-|---|---|
-| [docs/PROJECT-PLAN.md](docs/PROJECT-PLAN.md) | 当前定位、清理取舍、五人分工、今晚和明天的顺序 |
-| [docs/B-BACKEND-PLAN.md](docs/B-BACKEND-PLAN.md) | B 已认领的后端数据/API 范围、工作顺序和验收标准 |
-| [docs/B-PARALLEL-EXECUTION.md](docs/B-PARALLEL-EXECUTION.md) | B1–B6 的并列批次、完成证据和必须等待的联合验收 |
-| [docs/B4-A-INTEGRATION-RUNBOOK.md](docs/B4-A-INTEGRATION-RUNBOOK.md) | A 接入 B 后端并验收 422、409、重启恢复的浏览器联调手册 |
-| [docs/B-INTEGRATION-HANDOFF.md](docs/B-INTEGRATION-HANDOFF.md) | A/C/D/E 与 B 的同步联调、合并顺序和比赛冻结门槛 |
-| [docs/decisions/0001-backend-mvp-stack.md](docs/decisions/0001-backend-mvp-stack.md) | 比赛 MVP 后端技术栈与开发规则 |
-| [docs/team/README.md](docs/team/README.md) | 两人任务入口、已确认需求、待定事项、文件所有权和 Codex 开场话 |
-| [HANDOFF-C.md](HANDOFF-C.md) | C 模块合并入口、配置、共享文件审阅地图和验证证据 |
-| [docs/team/INTEGRATION.md](docs/team/INTEGRATION.md) | 分支、PR、合同先行、依赖合并、联合验收和交接 |
-| [docs/API.md](docs/API.md) | 前后端正式接线合同，包含失败与危险提醒 |
-| [contracts/api.ts](contracts/api.ts) | 与当前接口对应的 TypeScript 类型，供前端导入参考 |
-| [frontend/README.md](frontend/README.md) | 项目负责人的前端任务与验收清单 |
-| [docs/VALIDATION.md](docs/VALIDATION.md) | 实际测过的内容和没有证明的能力 |
-| [data/public_cases/README.md](data/public_cases/README.md) | 真实公开病例的许可、来源与改编说明 |
-| `backend/` | API、持久化、模型适配、本地规则 |
-| `tests/`、`scripts/` | 回归测试、演示、备份 |
-| `.dz/`、`PROJECT.md` | AI 接管记忆；本次发布协作需求不代表媒体实现或验收通过 |
-
-项目代码暂未授予通用开源许可证；团队可以从本仓库协作开发。公开病例改编资料的 CC BY 4.0 许可单独适用，不应混为整个仓库的许可证。
-
-## 比赛演示启动和自测
-
-复制 `.env.example` 为本地 `.env`，填写自己的真实服务配置并安装项目依赖后：
-
-```bash
-python -m scripts.start_demo --check-config
-python -m scripts.start_demo
-```
-
-访问 http://localhost:18768/。默认缺配置拒绝启动，不静默降级 Mock。完整可复制命令、三轮真实 API 自测和逐按钮验收见 [DEMO-SELFTEST.md](docs/DEMO-SELFTEST.md)。仅离线回归时显式运行 `python -m scripts.start_demo --offline`，不能把它算作在线验收。
-项目依赖会在系统没有 `ffmpeg` 命令时提供固定版本的备用二进制，供浏览器 WebM 录音转 PCM；已安装的系统 FFmpeg 仍优先使用。
+项目代码目前未授予通用开源许可证。公开病例改编资料的独立许可以对应资料说明为准。

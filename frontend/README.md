@@ -1,47 +1,48 @@
-# 老人端前端
+# 病历不归零·内测版前端
 
-零依赖原生 HTML/CSS/JS，页面按已确认的阿福式柔和冷暖配色与适老化排版实现，演示画布固定为手机窄屏（最大 520px）。首页优先提供“说给我听”和“拍下来”，文字记录作为补充。
-
-语音／照片后端已接入本地文件存储、SQLite 状态和 B 的识别模块。当前 HTTP 接线形状已经同步到 [正式 API 合同](../docs/API.md) 和 `contracts/api.ts`；真实 ASR/OCR、浏览器或手机验收仍未完成。复制 `.env.example` 并显式设置 `MEDIA_RECOGNITION_PROVIDER=mock` 后才是离线 Mock 演示模式；未配置 provider 时会返回 `provider_not_configured`，不会静默切换 Mock。
-
-录音已确认：长时间没有声音先提醒，提醒后仍无回应再自动暂停，保留已录内容并可接着说。静音时长、提醒后等待时长和检测方法待真机验证小声、停顿、电视噪声；60 秒强制结束要求已撤回。自动暂停不等于上传成功或记录已核对。前端与 A 对齐暂停续录的文件交接，不能丢弃前段内容。
+这是面向真实内测的零依赖网页应用。健康记录、原始文字、照片、录音、修订历史和反馈默认加密保存在使用者自己的浏览器里。前端是使用者唯一需要打开的入口；独立后端只负责访问保护和获得明确同意后的 AI/备份请求，不保存明文健康档案。
 
 ## 启动
 
-推荐按 [在线自测指南](../docs/DEMO-SELFTEST.md) 填好根目录 `.env`，使用 `python -m scripts.start_demo`，打开 <http://localhost:18768/>。前后端同源，不需要独立启动前端。
+在项目根目录配置 `.env` 后运行：
 
-开发时仍可用 `python3 -m http.server 5173 --directory frontend`，并为后端显式设置 `ALLOWED_ORIGIN=http://localhost:5173`，浏览器使用相同 localhost 主机名。独立开发配置不要和推荐同源演示入口混用。
+```bash
+python -m scripts.start_dev
+```
 
-## 当前边界
+默认打开前端 <http://127.0.0.1:5173/>。后端 API 在 `18768` 端口，由页面自动调用，不是使用者入口。首次使用需要创建本机资料库恢复密码；之后每次刷新或重新打开页面，都需要用该密码解锁。
 
-JSON 写请求带 `Content-Type: application/json` 和 `X-Session-Token`；创建文字记录需要 `Idempotency-Key`。token 从 `/health` 的 `session_token` 读取，服务重启后重新获取，不要写死进代码。
+恢复密码不会上传，也无法由服务端找回。忘记密码且没有可用备份时，本机加密资料无法恢复。
 
-保存成功后立刻更新界面。整理接口返回 `422` 时仍是可用状态，使用响应里的 `event` 和 `local_safety`，不要清空刚才的输入。具体字段和示例见 `docs/API.md` 与 `contracts/api.ts`。
+## 数据与安全边界
 
-## 媒体接线最短流程
+- 业务数据写入 IndexedDB，并由浏览器 Web Crypto 使用 AES-GCM 加密。
+- 数据密钥由恢复密码通过 PBKDF2-SHA256 包装；页面不把恢复密码写入本地存储。
+- 页面锁定时不展示健康正文；服务端重启不影响已保存在本机的档案。
+- 应用外层使用所有者密码和签名会话 Cookie；会改变云端状态或调用 AI 的请求还要通过 CSRF 校验。
+- AI 整理与媒体识别都要单次确认。请求期间服务端仅使用临时数据，结束后立即删除临时媒体文件。
+- 未命中危险提醒只表示规则没有命中，绝不表示“医学正常”或“安全”。
 
-1. 用 `multipart/form-data` 调 `POST /api/media/uploads` 创建元数据；这里只传 `kind`、`content_type`、`total_parts` 和可选校验字段，**不传文件**。
-2. 把完整媒体按顺序作为 `file` 上传到 `/api/media/uploads/{upload_id}/parts/0..N-1`。每一步使用自己的幂等键；同一步重试复用原键和原内容。
-3. 用 JSON 空对象 `{}` 调 `/api/media/uploads/{upload_id}/complete`。只有返回的 `media.save_status` 为 `saved` 才显示“原件已保存”。
-4. 用当前 `version` 调 `/api/media/{media_id}/recognize`。收到 `202` 后显示“识别处理中”，通过 `GET /api/media/{media_id}` 轮询；不要把 `202` 当识别成功。
-5. 原件用带 `X-Session-Token` 的 `fetch` 请求 `/api/media/{media_id}/original`，再创建 Blob URL；不要把 token 放在 URL。服务端已提供 Range 形状，但浏览器和手机播放仍需实测。
+## 当前功能
 
-前端展示状态使用 `save_status`、`recognition_status` 和 `link_status`，不要沿用早期草案的 `upload_status`。如果详情中的 `recognition.is_mock === true`，必须清楚显示“离线 Mock 演示模式”；它不能标成真实识别。识别失败时继续展示原件入口和错误状态，不能让该条媒体从列表消失。
+- 文字记录、本地危险描述提醒、AI 整理、人工核对、修订和历史查看。
+- 照片与录音原件加密保存；是否发送给 AI 由使用者逐次决定。
+- 时间线按关键词、日期、类型和状态筛选。
+- 两次确认后删除选中记录；旧备份不会随本机删除自动改变。
+- 按日期或选择记录生成就诊交接材料。
+- 下载加密备份、预览备份范围、验证恢复密码后原子替换本机资料。
+- 锁定资料库、查看浏览器存储状态、记录内测问题。
 
-启动媒体流程前可先读取 `/api/media/capabilities`。只有 `enabled: true` 才展示上传入口；若能力返回 `disabled_reason: "media_limits_not_configured"`，显示“当前实例未配置媒体资源保护边界”，不要自行填入默认值。可用 `/api/media/{media_id}/link` 复用已经保存的成功初稿恢复关联，不能因此重新调用识别；请求必须带当前 `expected_version`。默认服务已经组装媒体后端；若返回 `media_backend_unavailable`，应显示明确错误，不要静默切换 Mock。
+## 前端文件
 
-## 前端验收
+- `index.html`：产品页面和可访问的表单结构。
+- `runtime-config.js` / `config.js`：连接独立后端 API 的非密密运行配置。
+- `styles.css`：响应式布局、深色模式、打印和减少动态效果支持。
+- `local-store-core.js`：加密、IndexedDB、快照、备份和恢复核心。
+- `local-store.js`：本机资料库、AI 同意流程和产品操作接口。
+- `safety.js`：离线危险描述规则。
+- `app.js`：文字记录、时间线、核对、删除和交接界面。
+- `media.js`：录音、照片、本机原件与按需识别界面。
+- `service-worker.js`：仅缓存应用外壳，不缓存 API 或健康数据。
 
-- 断网或模拟失败：显示“原文已保存，AI 整理失败”，原文可查询。
-- “胸口疼，喘不上气”：顶部显示固定急救提醒，不能被核对按钮隐藏。
-- 普通输入：不误报危险，不显示“医学正常”。
-- 刷新页面：从 GET 接口恢复记录和版本。
-- 文字足够大，按钮有清楚的成功、失败和处理中状态。
-- 媒体上传：创建元数据、分片、完成三个阶段分别显示；完成前不显示“已保存”。
-- 识别启动：`202` 后可轮询；Mock 有显眼标识，失败后原件仍可进入。
-
-媒体验收还欠真实浏览器、手机录音格式、暂停续录文件合并和真实 ASR/OCR。完成这些实测前，不要在演示文案里写“真实识别已通过”。
-
-旧 HTML 只作为视觉参考，不要复制多套入口。若将构建产物放进 `frontend/dist`，后端会安全地提供静态文件；开发时用代理即可。
-- 文字记录、整理、核对、修订、历史和就诊交接材料接入现有 JSON API。记录时间直接取设备当前时间，老人不需要填写日期。
-- 录音支持浏览器 `MediaRecorder`，按真机验证前不承诺静音阈值；拍照支持相机/相册选择和本机预览。
+接口边界见 [API 文档](../docs/API.md)，完整运行与验证方法见项目根目录 [README](../README.md)。历史比赛材料仍保留在 `docs/` 作为过程记录，但不再代表当前产品入口或架构。

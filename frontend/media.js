@@ -1,5 +1,6 @@
 // P0 saved-media upload and recognition; no change to the VAD algorithm.
 let mediaItems=[], uploadBusy=false, selectedPhoto=null, pendingRecordingBlob=null, mediaCapabilities=null;
+const localMediaJobs=new Map();
 const recognitionBusy=new Set();
 const originalUrls=new Map();
 const mediaStatus=$('mediaStatus');
@@ -82,10 +83,11 @@ function renderMedia(){
 function latestMediaFirst(items){return items.slice().sort((a,b)=>{const at=Date.parse(a.created_at||a.updated_at||'')||0;const bt=Date.parse(b.created_at||b.updated_at||'')||0;return bt-at||String(b.media_id||'').localeCompare(String(a.media_id||''))})}
 async function openOriginal(id){
   try{
-    await health(); const r=await fetch(API+`/api/media/${id}/original`,{headers:{'X-Session-Token':token}});
-    if(!r.ok)throw new Error('原件暂时无法读取');
     if(originalUrls.has(id))URL.revokeObjectURL(originalUrls.get(id));
-    const url=URL.createObjectURL(await r.blob());originalUrls.set(id,url);
+    let url;
+    if(globalThis.HealthLocal?.active)url=await globalThis.HealthLocal.originalObjectUrl(id);
+    else{await health();const r=await fetch(API+`/api/media/${id}/original`,{credentials:'include',headers:{'X-Session-Token':token}});if(!r.ok)throw new Error('原件暂时无法读取');url=URL.createObjectURL(await r.blob());}
+    originalUrls.set(id,url);
     const m=mediaItems.find(m=>m.media_id===id);const box=$('media-'+id).querySelector('.media-result');
     const node=document.createElement(m.kind==='audio'?'audio':'img');node.src=url;
     if(m.kind==='audio')node.controls=true;else{node.alt='已保存的照片原件';node.style.maxWidth='100%';}
@@ -105,12 +107,12 @@ async function uploadMedia(file,kind){
     if(!file.size||file.size>c.max_total_bytes)throw new Error('文件为空或超过当前实例的资源保护边界');
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer())),v=>v.toString(16).padStart(2,'0')).join('');
     const jobKey=`elder_media_upload_v1:${kind}:${hash}:${type}`;
-    let job;try{job=JSON.parse(localStorage.getItem(jobKey)||'null')}catch{}
+    let job;if(globalThis.HealthLocal?.active)job=localMediaJobs.get(jobKey);else try{job=JSON.parse(localStorage.getItem(jobKey)||'null')}catch{}
     if(!job){
       const chunkSize=c.max_part_bytes,total=Math.ceil(file.size/chunkSize);
       if(total>c.max_parts)throw new Error('文件分片数量超过当前实例边界');
       job={key:crypto.randomUUID(),chunkSize,metadata:{kind,content_type:type,total_parts:String(total),expected_size:String(file.size),expected_sha256:hash,original_filename:file.name||`recording.${type.split('/')[1]}`,actor_name:'老人'}};
-      localStorage.setItem(jobKey,JSON.stringify(job));
+      if(globalThis.HealthLocal?.active)localMediaJobs.set(jobKey,job);else localStorage.setItem(jobKey,JSON.stringify(job));
     }
     if(job.mediaId){
       const {media}=await mediaRequest('/api/media/'+job.mediaId);
@@ -119,7 +121,7 @@ async function uploadMedia(file,kind){
     mediaMessage('正在创建上传，原件尚未保存完整');
     const form=new FormData();Object.entries(job.metadata).forEach(([k,v])=>form.append(k,v));
     const {upload}=await mediaRequest('/api/media/uploads',{method:'POST',headers:{'Idempotency-Key':job.key+':create'},body:form});
-    job.mediaId=upload.media_id;job.uploadId=upload.upload_id;localStorage.setItem(jobKey,JSON.stringify(job));
+    job.mediaId=upload.media_id;job.uploadId=upload.upload_id;if(globalThis.HealthLocal?.active)localMediaJobs.set(jobKey,job);else localStorage.setItem(jobKey,JSON.stringify(job));
     for(let i=0;i<Number(job.metadata.total_parts);i++){
       mediaMessage(`正在上传 ${i+1}/${job.metadata.total_parts}，原件尚未保存完整`);
       const part=new FormData();part.append('file',file.slice(i*job.chunkSize,(i+1)*job.chunkSize),`part-${i}`);
@@ -137,7 +139,7 @@ function showRecognition(m){
   const rid=m.event_link?.record_id||m.record_id;
   if(rid){const b=document.createElement('button');b.className='primary';b.textContent='核对识别记录';b.onclick=()=>{showView('recordsView');showDetail(rid)};box.append(b);}
   else if(m.recognition_status==='succeeded'){
-    const b=document.createElement('button');b.className='outline';b.textContent='恢复记录关联';
+    const b=document.createElement('button');b.className='outline';b.textContent=globalThis.HealthLocal?.active?'把识别文字保存为待核对记录':'恢复记录关联';
     b.onclick=async()=>{b.disabled=true;try{const {media:latest}=await mediaRequest('/api/media/'+m.media_id);await mediaRequest(`/api/media/${m.media_id}/link`,{method:'POST',headers:{'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expected_version:latest.version})});await loadMedia();const {media}=await mediaRequest('/api/media/'+m.media_id);showRecognition(media);await loadEvents();}catch(e){mediaMessage(e.message);b.disabled=false;}};box.append(b);
   }
 }
@@ -198,7 +200,7 @@ async function savePendingRecording(){
   if(media){
     pendingRecordingBlob=null;voiceUploadPending=false;setRecording(false);
     retry.classList.add('hidden');$('voiceHint').textContent='原件已保存，可在看病资料核对识别文字';
-    await recognizeMedia(media.media_id);
+    if(!globalThis.HealthLocal?.active)await recognizeMedia(media.media_id);
   }else{
     // A non-retryable capability/provider failure cannot be fixed by clicking
     // this button.  Keep the original in memory, but avoid presenting a

@@ -15,6 +15,9 @@ runtime/
 *.db
 *.db-*
 node_modules/
+.vefaas/
+site-packages/
+.wheels/
 frontend/dist/
 coverage/
 .coverage

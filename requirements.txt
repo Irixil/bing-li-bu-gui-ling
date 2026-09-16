@@ -6,3 +6,4 @@ rpds-py==2026.6.3
 typing_extensions==4.16.0
 websockets==15.0.1
 imageio-ffmpeg==0.6.0
+tos==2.9.0

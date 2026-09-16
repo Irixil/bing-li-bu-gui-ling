@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FRONTEND_HOST=0.0.0.0 \
+    PORT=8000
+
+WORKDIR /app
+RUN useradd --create-home --uid 10001 appuser
+
+COPY frontend ./frontend
+COPY scripts/start_frontend.py ./scripts/start_frontend.py
+
+USER appuser
+EXPOSE 8000
+CMD ["python", "-m", "scripts.start_frontend"]

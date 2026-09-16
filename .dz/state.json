@@ -7,9 +7,9 @@
   },
   "run": {
     "status": "active",
-    "product_verdict": "not_assessed",
-    "stage": "discovery",
-    "next_action": "完成 README 与证据更新，核对密钥未入库后提交并推送当前 GitHub 分支。",
+    "product_verdict": "implemented_unverified",
+    "stage": "plan_accepted",
+    "next_action": "把本地优先内测版改为单仓库双服务：前端 5173、后端 18768，完成跨端口安全联调和完整回归。",
     "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
@@ -17,38 +17,38 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-16T07:06:56+00:00"
+    "updated_at": "2026-09-16T15:52:23+00:00"
   },
   "decisions": {
     "intent": {
-      "status": "not_created",
+      "status": "accepted",
       "path": "docs/sdlc/intent.md",
-      "artifact_sha256": null,
-      "accepted_by": null,
-      "acceptance_reference": null,
-      "accepted_at": null,
+      "artifact_sha256": "a2398028f83ded61b2438c629e1ce5e948c042b1f0240b71ad9f9d9b3c4a20da",
+      "accepted_by": "project owner",
+      "acceptance_reference": "2026-09-16 用户确认正式开发目标，并明确产品名为‘病历不归零·内测版’，不写‘个人内测版’",
+      "accepted_at": "2026-09-16T07:47:44+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
     },
     "spec": {
-      "status": "not_created",
-      "path": "docs/sdlc/spec.md",
-      "artifact_sha256": null,
-      "accepted_by": null,
-      "acceptance_reference": null,
-      "accepted_at": null,
+      "status": "accepted",
+      "path": "docs/sdlc/spec-split-web-api-v2.md",
+      "artifact_sha256": "67dd43ec10fff7502bf7a131c5115b970080a984cc87d081f7c8ea2d74bfbe8e",
+      "accepted_by": "project owner",
+      "acceptance_reference": "2026-09-16 用户确认：一个 GitHub 项目，前端 5173 与后端 18768 独立运行；使用者只打开前端，前端自动调用后端。",
+      "accepted_at": "2026-09-16T15:49:22+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
     },
     "plan": {
-      "status": "not_created",
-      "path": "docs/sdlc/plan.md",
-      "artifact_sha256": null,
-      "accepted_by": null,
-      "acceptance_reference": null,
-      "accepted_at": null,
+      "status": "accepted",
+      "path": "docs/sdlc/plan-split-web-api-v2.md",
+      "artifact_sha256": "4f44c3b67377c614e9eff1c507c1749fbeb52a67454178665b4e920339c7175e",
+      "accepted_by": "project owner",
+      "acceptance_reference": "2026-09-16 用户在看到双端口六步执行说明后回复“OK，是这个意思”。",
+      "accepted_at": "2026-09-16T15:49:22+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
@@ -65,11 +65,597 @@
     "set_at": null
   },
   "requirements": {
-    "spec_sha256": null,
-    "items": []
+    "spec_sha256": "67dd43ec10fff7502bf7a131c5115b970080a984cc87d081f7c8ea2d74bfbe8e",
+    "items": [
+      {
+        "id": "R1",
+        "acceptance": "[DZ-MUST:R1] 使用者能在手机和电脑的受支持浏览器中打开“病历不归零·内测版”；未通过所有者访问保护的人不能使用在线 AI 或备份能力，未解锁本地数据的人不能读取或修改当前设备上的健康资料。"
+      },
+      {
+        "id": "R2",
+        "acceptance": "[DZ-MUST:R2] 使用者能通过文字、浏览器真实录音和真实照片创建记录，并在任何 AI 处理前看到原话或原件已经加密保存到当前设备的明确状态。"
+      },
+      {
+        "id": "R3",
+        "acceptance": "[DZ-MUST:R3] 录音和照片在真实 AI 服务中成功识别后才显示识别文字；处理中、失败、超时、断网、权限拒绝和额度问题都有明确说明，失败不删除原件，付费 AI 请求不自动重试。"
+      },
+      {
+        "id": "R4",
+        "acceptance": "[DZ-MUST:R4] AI 整理结果始终显示为待核对草稿，使用者能对照原始资料确认、退回或修订；确认只表示记录准确，不表示医生确认、诊断或风险消失。"
+      },
+      {
+        "id": "R5",
+        "acceptance": "[DZ-MUST:R5] 使用者能在当前主设备的连续时间线中按关键词、日期范围、记录类型和处理状态查找记录，并查看原话、原件、AI 草稿、当前状态和修订历史；页面不把不同设备的独立本地数据误称为已经自动同步。"
+      },
+      {
+        "id": "R6",
+        "acceptance": "[DZ-MUST:R6] 使用者能通过保留历史的方式修订记录，也能在看到本地数据和密文备份的具体影响并二次确认后删除选中的记录及其本地原件；删除不得连带其他记录、恢复密钥或 API 密钥。"
+      },
+      {
+        "id": "R7",
+        "acceptance": "[DZ-MUST:R7] 使用者能选择日期范围和记录生成就诊材料，预览中保留原话、来源、未确定时间、待处理项和安全提醒，并能使用浏览器打印或导出 PDF，不自动对外分享。"
+      },
+      {
+        "id": "R8",
+        "acceptance": "[DZ-MUST:R8] 使用者能在设备端创建包含记录和媒体原件、不包含 API 密钥的加密一致性备份，选择下载到自己的文件位置或上传密文到私有 TOS，并能在新设备的隔离区预览、恢复和验证，不静默覆盖现有数据。"
+      },
+      {
+        "id": "R9",
+        "acceptance": "[DZ-MUST:R9] 页面在空数据、加载、保存中、上传中、AI 处理中、待核对、断网、重启、会话失效、本机空间不足、备份过期、备份失败、局部失败和恢复后都给出真实状态和可继续动作，不将“已接受”、“处理中”、旧草稿或旧备份显示成本次成功。"
+      },
+      {
+        "id": "R10",
+        "acceptance": "[DZ-MUST:R10] 在首次使用真实 AI 前，页面明确说明选中的文字会发给 DeepSeek，选中的录音或照片会发给 AIHubMix 及其上游模型服务；使用者可以不同意外发而继续本地保存和手工整理，页面不宣称未经核实的服务商保留或训练政策。"
+      },
+      {
+        "id": "R11",
+        "acceptance": "[DZ-MUST:R11] 本地危险提醒和专业复核线索在保存、AI 失败、核对、修订、时间线、就诊材料和备份恢复后都不被静默清除；未命中规则不显示成“正常”或“无风险”。"
+      },
+      {
+        "id": "R12",
+        "acceptance": "[DZ-MUST:R12] 页面在主要手机尺寸和电脑屏幕上可读可点，关键流程可用键盘完成，录音和照片权限拒绝时提供文字或文件选择替代方式，不依赖颜色单独表达成功或危险。"
+      },
+      {
+        "id": "R13",
+        "acceptance": "[DZ-MUST:R13] 使用者能在应用内保存一条不默认附带健康原文或密钥的内测问题记录，包含当前页面、发生时间和用户描述，供后续修复和回归验证。"
+      }
+    ]
   },
-  "work_items": [],
-  "evidence": [],
+  "work_items": [
+    {
+      "id": "W1",
+      "title": "云端骨架与访问保护",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "电脑关机后目标手机仍可打开页面；未授权浏览器不能使用 AI 或备份接口；现有 DeepWe 地址和版本不变化。覆盖 R1、R9、R12。"
+      ],
+      "evidence_ids": [
+        "E-W1-LOCAL-20260916"
+      ],
+      "note": "云端骨架、访问保护、Linux 发布包已实现且本地测试通过；待正式 veFaaS 部署、手机访问及 DeepWe 不变性验收。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:04:15+00:00"
+    },
+    {
+      "id": "W2",
+      "title": "本地加密数据与结构升级",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "重启后数据仍可解锁；未解锁页面无法读取正文；结构升级失败不破坏旧版本；旧 SQLite 文件未被覆盖或删除。覆盖 R2、R5、R6、R8、R9、R11。"
+      ],
+      "evidence_ids": [
+        "E-W2-LOCAL-20260916"
+      ],
+      "note": "设备端加密仓库、锁定、重载与备份恢复已实现并本地验证；待结构升级失败场景与正式设备验收。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:04:34+00:00"
+    },
+    {
+      "id": "W3",
+      "title": "原件优先、AI 同意与真实媒体",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "关闭 AI 仍能完整记录；只有显式动作产生外部调用；真实浏览器媒体不丢原件并完成受控闭环。覆盖 R2、R3、R4、R10、R11、R12。"
+      ],
+      "evidence_ids": [
+        "E-W3-LOCAL-20260916"
+      ],
+      "note": "原件优先、外发同意、媒体临时处理和失败保留已实现；待真实手机媒体与付费模型受控验收。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:04:35+00:00"
+    },
+    {
+      "id": "W4",
+      "title": "时间线、历史、删除和就诊材料",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "至少六条合成或打码记录可按全部维度查找；专用测试记录删除后本地正文和原件不可读；PDF 不经过云端生成。覆盖 R4、R5、R6、R7、R9、R11、R12。"
+      ],
+      "evidence_ids": [
+        "E-W4-LOCAL-20260916"
+      ],
+      "note": "时间线、筛选、历史、删除和浏览器打印材料已实现；待六条记录、真实手机及 PDF 全流程验收。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:04:35+00:00"
+    },
+    {
+      "id": "W5",
+      "title": "TOS 密文备份、恢复和反馈",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "TOS 对象没有健康明文、API 密钥或恢复密钥；全新浏览器可恢复并核对记录和媒体；损坏备份不覆盖当前数据。覆盖 R6、R8、R9、R13。"
+      ],
+      "evidence_ids": [
+        "E-W5-LOCAL-20260916"
+      ],
+      "note": "加密备份、隔离预览恢复、TOS 短时授权和本地反馈已实现；待私有 TOS 与全新浏览器实测。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:04:35+00:00"
+    },
+    {
+      "id": "W6",
+      "title": "全量验收、文档和主干发布",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "test",
+      "status": "pending",
+      "acceptance": [
+        "R1-R13 均有当前提交和实际部署上的可复现证据；无高严重度未解决问题；所有者可从手机完成录入、核对、备份和恢复。"
+      ],
+      "evidence_ids": [],
+      "note": "等待云端部署、真实 AI/手机/跨浏览器验收后再更新 README、提交并覆盖 GitHub main。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:03:28+00:00"
+    },
+    {
+      "id": "D1",
+      "title": "本地优先产品与系统设计",
+      "required": true,
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "phase": "design",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "已确认的设计完整定义页面结构、设备本地加密数据、veFaaS 无状态职责、TOS 密文备份、安全边界、失败恢复和 W1-W6 验收。覆盖 R1-R13。"
+      ],
+      "evidence_ids": [
+        "E-D1-PLAN"
+      ],
+      "note": "已确认规格与方案作为设计证据。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:03:14+00:00"
+    },
+    {
+      "id": "W2@bb2619691d27",
+      "title": "本地加密数据与结构升级",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "重启后数据仍可解锁；未解锁页面无法读取正文；结构升级失败不破坏旧版本；旧 SQLite 文件未被覆盖或删除。覆盖 R2、R5、R6、R8、R9、R11。"
+      ],
+      "evidence_ids": [],
+      "note": "设备端加密仓库、锁定、重载与备份恢复已实现并本地验证；待结构升级失败场景与正式设备验收。\nkeep from W2: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:27:37+00:00",
+      "carried_from": "W2"
+    },
+    {
+      "id": "W3@bb2619691d27",
+      "title": "原件优先、AI 同意与真实媒体",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "关闭 AI 仍能完整记录；只有显式动作产生外部调用；真实浏览器媒体不丢原件并完成受控闭环。覆盖 R2、R3、R4、R10、R11、R12。"
+      ],
+      "evidence_ids": [],
+      "note": "原件优先、外发同意、媒体临时处理和失败保留已实现；待真实手机媒体与付费模型受控验收。\nkeep from W3: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:27:37+00:00",
+      "carried_from": "W3"
+    },
+    {
+      "id": "W4@bb2619691d27",
+      "title": "时间线、历史、删除和就诊材料",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "至少六条合成或打码记录可按全部维度查找；专用测试记录删除后本地正文和原件不可读；PDF 不经过云端生成。覆盖 R4、R5、R6、R7、R9、R11、R12。"
+      ],
+      "evidence_ids": [],
+      "note": "时间线、筛选、历史、删除和浏览器打印材料已实现；待六条记录、真实手机及 PDF 全流程验收。\nkeep from W4: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:27:37+00:00",
+      "carried_from": "W4"
+    },
+    {
+      "id": "W5@bb2619691d27",
+      "title": "TOS 密文备份、恢复和反馈",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "TOS 对象没有健康明文、API 密钥或恢复密钥；全新浏览器可恢复并核对记录和媒体；损坏备份不覆盖当前数据。覆盖 R6、R8、R9、R13。"
+      ],
+      "evidence_ids": [],
+      "note": "加密备份、隔离预览恢复、TOS 短时授权和本地反馈已实现；待私有 TOS 与全新浏览器实测。\nkeep from W5: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:27:37+00:00",
+      "carried_from": "W5"
+    },
+    {
+      "id": "W1@bb2619691d27",
+      "title": "云端骨架与访问保护",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "本地打开前端 5173 显示完整产品页面并能安全调用后端 18768；后端不托管前端；未授权来源不能使用 AI 或备份接口；线上只分享前端地址且现有 DeepWe 地址和版本不变化。覆盖 R1、R9、R12。"
+      ],
+      "evidence_ids": [
+        "E-W1-SPLIT-20260916"
+      ],
+      "note": "本地双端口、访问保护和独立 Linux 后端包已实现并通过；正式云端双服务、手机和 DeepWe 不变性仍待验收。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:42:51+00:00",
+      "carried_from": "W1"
+    },
+    {
+      "id": "W6@bb2619691d27",
+      "title": "全量验收、文档和主干发布",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "test",
+      "status": "pending",
+      "acceptance": [
+        "R1-R13 均有当前提交和双服务实际部署上的可复现证据；无高严重度未解决问题；所有者能从前端地址在手机完成录入、核对、备份和恢复；frontend 与 backend 一起进入 GitHub main。"
+      ],
+      "evidence_ids": [],
+      "note": "等待云端部署、真实 AI/手机/跨浏览器验收后再更新 README、提交并覆盖 GitHub main。\nrevise from W6: 发布候选必须同时包含并验证独立前端服务和独立后端服务。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:27:38+00:00",
+      "carried_from": "W6"
+    },
+    {
+      "id": "D1@bb2619691d27",
+      "title": "本地优先产品与系统设计",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "design",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "已确认的设计完整定义单仓库双服务、前端唯一用户入口、独立 API 地址、精确 CORS/会话、本地加密数据、TOS 密文备份、安全边界和验收方式。覆盖 R1-R13。"
+      ],
+      "evidence_ids": [
+        "E-D1-SPLIT-20260916"
+      ],
+      "note": "前后端分离规格与方案已确认并形成当前设计证据。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:48:54+00:00",
+      "carried_from": "D1"
+    },
+    {
+      "id": "W1A",
+      "title": "修复前端入口与后端服务混淆",
+      "required": true,
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。"
+      ],
+      "evidence_ids": [
+        "E-W1A-SPLIT-20260916"
+      ],
+      "note": "真实浏览器和自动化回归证明前端入口、独立 API、跨端口登录和 README 修复成立。",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:48:54+00:00"
+    },
+    {
+      "id": "W1@bb2619691d27@f0d4b7ca8e96",
+      "title": "云端骨架与访问保护",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "本地打开前端 5173 显示完整产品页面并能安全调用后端 18768；后端不托管前端；未授权来源不能使用 AI 或备份接口；线上只分享前端地址且现有 DeepWe 地址和版本不变化。覆盖 R1、R9、R12。"
+      ],
+      "evidence_ids": [],
+      "note": "本地双端口、访问保护和独立 Linux 后端包已实现并通过；正式云端双服务、手机和 DeepWe 不变性仍待验收。\nkeep from W1@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W1@bb2619691d27"
+    },
+    {
+      "id": "W2@bb2619691d27@f0d4b7ca8e96",
+      "title": "本地加密数据与结构升级",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "重启后数据仍可解锁；未解锁页面无法读取正文；结构升级失败不破坏旧版本；旧 SQLite 文件未被覆盖或删除。覆盖 R2、R5、R6、R8、R9、R11。"
+      ],
+      "evidence_ids": [],
+      "note": "设备端加密仓库、锁定、重载与备份恢复已实现并本地验证；待结构升级失败场景与正式设备验收。\nkeep from W2: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required\nkeep from W2@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W2@bb2619691d27"
+    },
+    {
+      "id": "W3@bb2619691d27@f0d4b7ca8e96",
+      "title": "原件优先、AI 同意与真实媒体",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "关闭 AI 仍能完整记录；只有显式动作产生外部调用；真实浏览器媒体不丢原件并完成受控闭环。覆盖 R2、R3、R4、R10、R11、R12。"
+      ],
+      "evidence_ids": [],
+      "note": "原件优先、外发同意、媒体临时处理和失败保留已实现；待真实手机媒体与付费模型受控验收。\nkeep from W3: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required\nkeep from W3@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W3@bb2619691d27"
+    },
+    {
+      "id": "W4@bb2619691d27@f0d4b7ca8e96",
+      "title": "时间线、历史、删除和就诊材料",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "至少六条合成或打码记录可按全部维度查找；专用测试记录删除后本地正文和原件不可读；PDF 不经过云端生成。覆盖 R4、R5、R6、R7、R9、R11、R12。"
+      ],
+      "evidence_ids": [],
+      "note": "时间线、筛选、历史、删除和浏览器打印材料已实现；待六条记录、真实手机及 PDF 全流程验收。\nkeep from W4: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required\nkeep from W4@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W4@bb2619691d27"
+    },
+    {
+      "id": "W5@bb2619691d27@f0d4b7ca8e96",
+      "title": "TOS 密文备份、恢复和反馈",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "TOS 对象没有健康明文、API 密钥或恢复密钥；全新浏览器可恢复并核对记录和媒体；损坏备份不覆盖当前数据。覆盖 R6、R8、R9、R13。"
+      ],
+      "evidence_ids": [],
+      "note": "加密备份、隔离预览恢复、TOS 短时授权和本地反馈已实现；待私有 TOS 与全新浏览器实测。\nkeep from W5: 本地加密、原件优先、时间线、备份和反馈不依赖前后端是否同源，现有实现继续保留并重新验证。; fresh checks required\nkeep from W5@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W5@bb2619691d27"
+    },
+    {
+      "id": "W6@bb2619691d27@f0d4b7ca8e96",
+      "title": "全量验收、文档和主干发布",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "test",
+      "status": "pending",
+      "acceptance": [
+        "R1-R13 均有当前提交和双服务实际部署上的可复现证据；无高严重度未解决问题；所有者能从前端地址在手机完成录入、核对、备份和恢复；frontend 与 backend 一起进入 GitHub main。"
+      ],
+      "evidence_ids": [],
+      "note": "等待云端部署、真实 AI/手机/跨浏览器验收后再更新 README、提交并覆盖 GitHub main。\nrevise from W6: 发布候选必须同时包含并验证独立前端服务和独立后端服务。; fresh checks required\nkeep from W6@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W6@bb2619691d27"
+    },
+    {
+      "id": "D1@bb2619691d27@f0d4b7ca8e96",
+      "title": "本地优先产品与系统设计",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "design",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "已确认的设计完整定义单仓库双服务、前端唯一用户入口、独立 API 地址、精确 CORS/会话、本地加密数据、TOS 密文备份、安全边界和验收方式。覆盖 R1-R13。"
+      ],
+      "evidence_ids": [],
+      "note": "前后端分离规格与方案已确认并形成当前设计证据。\nkeep from D1@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "D1@bb2619691d27"
+    },
+    {
+      "id": "W1A@f0d4b7ca8e96",
+      "title": "修复前端入口与后端服务混淆",
+      "required": true,
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "phase": "build",
+      "status": "implemented_unverified",
+      "acceptance": [
+        "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。"
+      ],
+      "evidence_ids": [],
+      "note": "真实浏览器和自动化回归证明前端入口、独立 API、跨端口登录和 README 修复成立。\nkeep from W1A: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "blocker": null,
+      "updated_at": "2026-09-16T15:52:23+00:00",
+      "carried_from": "W1A"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-D1-PLAN",
+      "work_item_id": "D1",
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "target_id": "ac090d60ee601c8753a52d1728aa092391fe0f06bb316a90da4967b7945f1792",
+      "acceptance": "已确认的设计完整定义页面结构、设备本地加密数据、veFaaS 无状态职责、TOS 密文备份、安全边界、失败恢复和 W1-W6 验收。覆盖 R1-R13。",
+      "kind": "accepted_design",
+      "claim": "项目所有者已确认本地优先修订规格和实施方案，设计路径与边界完整。",
+      "source": "2026-09-16 用户回复“确认修订”",
+      "artifact_path": "docs/sdlc/plan-local-first.md",
+      "artifact_sha256": "d9f8b4a0d33f67297102be8305c0a1e435108010790903a63091b75dc6f52d26",
+      "revision": "working-tree@d9f8b4a0d33f67297102be8305c0a1e435108010790903a63091b75dc6f52d26",
+      "environment": "local design review",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T10:08:34+00:00"
+    },
+    {
+      "id": "E-W1-LOCAL-20260916",
+      "work_item_id": "W1",
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "target_id": "5d907d097aedde59caaf8d49427324c47060c86072b81c7ebcbd7a75ec3bb23c",
+      "acceptance": "电脑关机后目标手机仍可打开页面；未授权浏览器不能使用 AI 或备份接口；现有 DeepWe 地址和版本不变化。覆盖 R1、R9、R12。",
+      "kind": "local_regression_and_browser_observation",
+      "claim": "访问保护、会话/CSRF、无状态启动和 veFaaS Linux 发布包已通过本地回归；正式云端可用性和 DeepWe 不变性尚未验收。",
+      "source": "2026-09-16 current working tree",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "9470761d09d99f867b525aec110fe0256088298203707cce1c46719be7866d23",
+      "revision": "working-tree@local-first-2026-09-16",
+      "environment": "local macOS + automated browser; pre-deploy",
+      "result": "unverified",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:04:15+00:00"
+    },
+    {
+      "id": "E-W2-LOCAL-20260916",
+      "work_item_id": "W2",
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "target_id": "5d907d097aedde59caaf8d49427324c47060c86072b81c7ebcbd7a75ec3bb23c",
+      "acceptance": "重启后数据仍可解锁；未解锁页面无法读取正文；结构升级失败不破坏旧版本；旧 SQLite 文件未被覆盖或删除。覆盖 R2、R5、R6、R8、R9、R11。",
+      "kind": "local_regression_and_browser_observation",
+      "claim": "加密 IndexedDB、锁定/重载、备份恢复和无明文检查已通过自动化及本地浏览器验证；结构升级失败和正式设备尚未完成。",
+      "source": "2026-09-16 current working tree",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "9470761d09d99f867b525aec110fe0256088298203707cce1c46719be7866d23",
+      "revision": "working-tree@local-first-2026-09-16",
+      "environment": "local macOS + automated browser; pre-deploy",
+      "result": "unverified",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:04:34+00:00"
+    },
+    {
+      "id": "E-W3-LOCAL-20260916",
+      "work_item_id": "W3",
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "target_id": "5d907d097aedde59caaf8d49427324c47060c86072b81c7ebcbd7a75ec3bb23c",
+      "acceptance": "关闭 AI 仍能完整记录；只有显式动作产生外部调用；真实浏览器媒体不丢原件并完成受控闭环。覆盖 R2、R3、R4、R10、R11、R12。",
+      "kind": "local_regression_and_browser_observation",
+      "claim": "离线保存、显式同意、失败保留原件及临时媒体处理已通过回归；真实手机媒体和真实模型尚未验收。",
+      "source": "2026-09-16 current working tree",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "9470761d09d99f867b525aec110fe0256088298203707cce1c46719be7866d23",
+      "revision": "working-tree@local-first-2026-09-16",
+      "environment": "local macOS + automated browser; pre-deploy",
+      "result": "unverified",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:04:35+00:00"
+    },
+    {
+      "id": "E-W4-LOCAL-20260916",
+      "work_item_id": "W4",
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "target_id": "5d907d097aedde59caaf8d49427324c47060c86072b81c7ebcbd7a75ec3bb23c",
+      "acceptance": "至少六条合成或打码记录可按全部维度查找；专用测试记录删除后本地正文和原件不可读；PDF 不经过云端生成。覆盖 R4、R5、R6、R7、R9、R11、R12。",
+      "kind": "local_regression_and_browser_observation",
+      "claim": "时间线、筛选、历史、删除与浏览器打印实现已通过代码回归；六条记录、真实设备和导出 PDF 验收尚未完成。",
+      "source": "2026-09-16 current working tree",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "9470761d09d99f867b525aec110fe0256088298203707cce1c46719be7866d23",
+      "revision": "working-tree@local-first-2026-09-16",
+      "environment": "local macOS + automated browser; pre-deploy",
+      "result": "unverified",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:04:35+00:00"
+    },
+    {
+      "id": "E-W5-LOCAL-20260916",
+      "work_item_id": "W5",
+      "contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "target_id": "5d907d097aedde59caaf8d49427324c47060c86072b81c7ebcbd7a75ec3bb23c",
+      "acceptance": "TOS 对象没有健康明文、API 密钥或恢复密钥；全新浏览器可恢复并核对记录和媒体；损坏备份不覆盖当前数据。覆盖 R6、R8、R9、R13。",
+      "kind": "local_regression_and_browser_observation",
+      "claim": "设备端密文备份、损坏拒绝、隔离预览及 TOS 临时授权实现已通过本地回归；私有 TOS 和全新浏览器恢复尚未验收。",
+      "source": "2026-09-16 current working tree",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "9470761d09d99f867b525aec110fe0256088298203707cce1c46719be7866d23",
+      "revision": "working-tree@local-first-2026-09-16",
+      "environment": "local macOS + automated browser; pre-deploy",
+      "result": "unverified",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:04:35+00:00"
+    },
+    {
+      "id": "E-W1A-SPLIT-20260916",
+      "work_item_id": "W1A",
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "target_id": "0fc397c8e7e2d3c5417b119c0ec61748a42135e79071164d715b83934ff467c6",
+      "acceptance": "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。",
+      "kind": "automated_regression_and_real_browser",
+      "claim": "前端 5173 显示完整内测页面并配置到后端 18768；跨端口登录和 Cookie 成功；后端根地址返回 api/frontend_hosted false；README 只引导打开前端。",
+      "source": "pytest + node --test + ego-browser local flow",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "ac2fcb9a97b2f1c22032ae74b7f54fc9df520f6fec1079da501b981c16271e73",
+      "revision": "working-tree@split-web-api-2026-09-16",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:42:51+00:00"
+    },
+    {
+      "id": "E-W1-SPLIT-20260916",
+      "work_item_id": "W1@bb2619691d27",
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "target_id": "0fc397c8e7e2d3c5417b119c0ec61748a42135e79071164d715b83934ff467c6",
+      "acceptance": "本地打开前端 5173 显示完整产品页面并能安全调用后端 18768；后端不托管前端；未授权来源不能使用 AI 或备份接口；线上只分享前端地址且现有 DeepWe 地址和版本不变化。覆盖 R1、R9、R12。",
+      "kind": "local_split_service_preflight",
+      "claim": "本地双端口、精确来源限制、会话和独立后端发布包通过；线上地址、手机和 DeepWe 不变性尚未部署验收。",
+      "source": "pytest + node --test + ego-browser + build.sh",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "ac2fcb9a97b2f1c22032ae74b7f54fc9df520f6fec1079da501b981c16271e73",
+      "revision": "working-tree@split-web-api-2026-09-16",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "result": "unverified",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:42:51+00:00"
+    },
+    {
+      "id": "E-D1-SPLIT-20260916",
+      "work_item_id": "D1@bb2619691d27",
+      "contract_sha256": "bb2619691d276125adb977df99e459918a37c63300043f1745764d585e539a92",
+      "target_id": "0fc397c8e7e2d3c5417b119c0ec61748a42135e79071164d715b83934ff467c6",
+      "acceptance": "已确认的设计完整定义单仓库双服务、前端唯一用户入口、独立 API 地址、精确 CORS/会话、本地加密数据、TOS 密文备份、安全边界和验收方式。覆盖 R1-R13。",
+      "kind": "accepted_design",
+      "claim": "已接受的前后端分离规格和实施方案定义了双服务拓扑、前端入口、安全边界、数据流与 R1-R13 验收。",
+      "source": "owner-confirmed docs/sdlc/spec-split-web-api.md and docs/sdlc/plan-split-web-api.md",
+      "artifact_path": "docs/sdlc/plan-split-web-api.md",
+      "artifact_sha256": "2b13ea408f299be5ba5b3453fb6ca013262ecf1c110a4e10a124c685d7191360",
+      "revision": "working-tree@split-web-api-2026-09-16",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:43:17+00:00"
+    }
+  ],
   "risks": [
     {
       "id": "REAL-DEEPSEEK-C001",
@@ -190,6 +776,30 @@
       "decision_by": "user",
       "decision_reference": "2026-09-16 用户回复：确认执行",
       "decided_at": "2026-09-16T06:57:41+00:00"
+    },
+    {
+      "id": "RISK-CLOUD-BETA-20260916",
+      "title": "创建内测版按量云资源并部署",
+      "level": "medium",
+      "action_kind": "spend",
+      "consequence": "将新增 veFaaS、私有 TOS 与 IAM 资源并可能产生按量费用；配置错误也可能导致公开访问或超出预期用量。",
+      "safer_option": "保持当前仅本地运行，不创建任何云资源。",
+      "recovery": "删除新建 bingli-beta 应用、私有备份桶和专用 IAM 角色；现有 DeepWe 不受影响。",
+      "scope": "仅 cn-beijing：veFaaS 应用 bingli-beta；TOS 私有桶 bingli-beta-backup-99ba8a9c；IAM 策略 BingliBetaBackupPolicy；IAM 角色 BingliBetaBackupRole；复用 DeepWe 网关但只新增隔离服务/域名，不改已有应用和路由。",
+      "lease_contract_sha256": "4a36b349694bfbe5ad17effab7f2aad6b2bacdc391f5bb23b685396cc7989ef1",
+      "lease_target_id": "5d907d097aedde59caaf8d49427324c47060c86072b81c7ebcbd7a75ec3bb23c",
+      "lease_revision": "working-tree@local-first-2026-09-16",
+      "lease_environment": "local macOS + automated browser; pre-deploy",
+      "amount_limit": "仅按量付费；veFaaS 0.5 vCPU/1 GiB、最小实例 0、最大实例 2；不购买套餐、不启用预留实例、不新建网关。",
+      "expires_at": "2026-09-23T23:59:59+08:00",
+      "authorization_pending": false,
+      "decision": "declined",
+      "action_status": "declined",
+      "action_reference": null,
+      "action_at": null,
+      "decision_by": "project owner",
+      "decision_reference": "2026-09-16 用户确认前端与后端保持两个独立端口/服务，旧的单应用云资源范围不再适用。",
+      "decided_at": "2026-09-16T15:23:02+00:00"
     }
   ],
   "issues": [
@@ -294,6 +904,23 @@
       "prevention": "启动前同时核对 Key 的 /v1/models 可用列表和公开模型页；首次只发合成资料，不自动重试或切换未验证模型。",
       "created_at": "2026-09-14T15:39:12+00:00",
       "updated_at": "2026-09-16T07:06:56+00:00"
+    },
+    {
+      "id": "SPLIT-ENTRY-20260916",
+      "title": "使用者入口被错误设计成同源后端地址",
+      "kind": "implementation_gap",
+      "status": "implemented_unverified",
+      "source": "2026-09-16 项目所有者反馈：展示时应直接看到前端页面，前后端仍是两个独立端口。",
+      "expected": "使用者只打开前端页面，前端和后端独立运行并自动连接。",
+      "actual": "已接受方案和启动说明把 18768 后端地址同时当作页面入口，造成像是只推出后端。",
+      "impact": "使用者看不到明确的产品入口，部署边界与所有者预期不一致。",
+      "route": "work_item",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "evidence_ids": [],
+      "resolution": "前端固定为 5173 用户入口，后端固定为 18768 API；前端通过运行时配置调用 API，后端 local_first 根地址只返回 API 身份，README 和启动输出只引导打开前端。",
+      "prevention": "保留 frontend_config、local_first_http 回归；每次发布必须从前端地址进入并检查地址栏与后端根响应。",
+      "created_at": "2026-09-16T15:42:08+00:00",
+      "updated_at": "2026-09-16T15:52:23+00:00"
     }
   ]
 }

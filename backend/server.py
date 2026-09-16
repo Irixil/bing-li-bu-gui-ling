@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, secrets, mimetypes, hashlib, re
+import json, os, secrets, mimetypes, hashlib, re, tempfile
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from dataclasses import asdict, is_dataclass
@@ -9,25 +9,37 @@ from urllib.parse import urlparse, unquote
 from pathlib import Path
 try:
  from .adapter import AdapterError, Config, organize_event, PROMPT_VERSION, SCHEMA_VERSION, PROMPT_SHA256, payload_sha256
+ from . import app_access, cloud_backup
  from .media_backend import create_default_media_backend
  from .media_store import MediaStoreError
+ from .recognition import RecognitionError, recognize_file
+ from .safety import scan_danger
  from .store import SQLiteStore, StoreError, NotFound, Conflict, Unauthorized, Forbidden, expected_version
 except ImportError:
  from adapter import AdapterError, Config, organize_event, PROMPT_VERSION, SCHEMA_VERSION, PROMPT_SHA256, payload_sha256
+ import app_access, cloud_backup
  from media_backend import create_default_media_backend
  from media_store import MediaStoreError
+ from recognition import RecognitionError, recognize_file
+ from safety import scan_danger
  from store import SQLiteStore, StoreError, NotFound, Conflict, Unauthorized, Forbidden, expected_version
 ROOT=Path(__file__).resolve().parents[1]
 # The elder UI is plain HTML/JS; serve its source when no optional build exists.
 STATIC=(ROOT/'frontend'/'dist' if (ROOT/'frontend'/'dist'/'index.html').is_file() else ROOT/'frontend').resolve()
 SESSION_TOKEN=secrets.token_urlsafe(24)
-DB_PATH=os.getenv('DB_PATH',os.getenv('API_DB_PATH',str(ROOT/'runtime'/'records.sqlite3'))); STORE=SQLiteStore(DB_PATH)
+DB_PATH=os.getenv('DB_PATH',os.getenv('API_DB_PATH',str(ROOT/'runtime'/'records.sqlite3')))
+# The hosted local-first application must not create a shadow health database.
+# Legacy development mode keeps the existing SQLite behavior and test surface.
+STORE=None if app_access.local_first_enabled() else SQLiteStore(DB_PATH)
 ALLOWED_ORIGIN=os.getenv('ALLOWED_ORIGIN','')
 MAX_MEDIA_REQUEST_BYTES=int(os.getenv('MEDIA_REQUEST_MAX_BYTES','0') or '0')
 MEDIA_ROOT=os.getenv('MEDIA_ROOT',str(ROOT/'runtime'/'media'))
-MEDIA_BACKEND=create_default_media_backend(STORE,root=MEDIA_ROOT)
+MEDIA_BACKEND=None if app_access.local_first_enabled() else create_default_media_backend(STORE,root=MEDIA_ROOT)
 
 _SAFE_MEDIA_ID=re.compile(r'^(?:media|upload)_[A-Za-z0-9_-]+$')
+
+def _allowed_origin():
+ return os.getenv('ALLOWED_ORIGIN',ALLOWED_ORIGIN).strip().rstrip('/')
 
 def _public_value(value):
  if is_dataclass(value):return asdict(value)
@@ -125,14 +137,44 @@ def model_failure_details(error):
  reason=('模型超时' if isinstance(cause,TimeoutError) else '模型返回非法 JSON' if isinstance(cause,json.JSONDecodeError) else '网络连接失败' if isinstance(cause,URLError) else '模型调用失败或返回内容未通过校验')
  return {'failure_reason':reason}
 
+def local_first_model_evidence(body):
+ raw=body.get('raw_text')
+ if not isinstance(raw,str) or not raw.strip():raise StoreError('raw_text_required')
+ if len(raw)>10000:raise StoreError('raw_text_too_long')
+ if body.get('consent') is not True:raise StoreError('ai_consent_required')
+ record_id=body.get('record_id')
+ if not isinstance(record_id,str) or not re.fullmatch(r'rec_[A-Za-z0-9_-]{8,100}',record_id):raise StoreError('record_id_invalid')
+ source_kind=body.get('source_kind','elder')
+ if source_kind not in {'elder','family_observation','family_report','caregiver','clinician_evidence','document','audio_transcript','system','unknown'}:raise StoreError('invalid_source_kind')
+ history=body.get('history') or []
+ if not isinstance(history,list) or len(history)>20:raise StoreError('history_invalid')
+ clean_history=[]
+ for item in history:
+  if not isinstance(item,dict):raise StoreError('history_invalid')
+  history_id=item.get('record_id');history_text=item.get('raw_text')
+  if not isinstance(history_id,str) or not re.fullmatch(r'rec_[A-Za-z0-9_-]{8,100}',history_id):raise StoreError('history_invalid')
+  if not isinstance(history_text,str) or not history_text.strip() or len(history_text)>10000:raise StoreError('history_invalid')
+  clean_history.append({'record_id':history_id,'raw_text':history_text,'source_kind':item.get('source_kind','unknown'),'recorded_at':item.get('recorded_at'),'occurred_time':item.get('occurred_time')})
+ return {'record_id':record_id,'raw_text':raw,'source_kind':source_kind,'recorded_at':body.get('recorded_at'),'occurred_time':body.get('occurred_time'),'history':clean_history}
+
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*a): pass
+ def origin_allowed(self):
+  origin=self.headers.get('Origin','').strip().rstrip('/')
+  if not origin:return True
+  allowed=_allowed_origin()
+  if allowed:return origin==allowed
+  if app_access.local_first_enabled():return False
+  return origin==('http://'+self.headers.get('Host','')).rstrip('/')
  def end_headers(self):
-  o=self.headers.get('Origin',''); expected=ALLOWED_ORIGIN or ('http://'+self.headers.get('Host',''))
-  if o and o==expected:self.send_header('Access-Control-Allow-Origin',o);self.send_header('Vary','Origin')
+  o=self.headers.get('Origin','').strip().rstrip('/')
+  if o and self.origin_allowed():
+   self.send_header('Access-Control-Allow-Origin',o);self.send_header('Access-Control-Allow-Credentials','true');self.send_header('Vary','Origin')
   self.send_header('Cache-Control','no-store');super().end_headers()
- def send_json(self,code,p):
-  b=json.dumps(p,ensure_ascii=False).encode();self.send_response(code);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)
+ def send_json(self,code,p,extra_headers=None):
+  b=json.dumps(p,ensure_ascii=False).encode();self.send_response(code);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Content-Length',str(len(b)))
+  for name,value in (extra_headers or {}).items():self.send_header(name,value)
+  self.end_headers();self.wfile.write(b)
  def send_bytes(self,code,payload,content_type,extra_headers=None):
   self.send_response(code);self.send_header('Content-Type',content_type);self.send_header('Content-Length',str(len(payload)))
   for name,value in (extra_headers or {}).items():self.send_header(name,value)
@@ -143,11 +185,11 @@ class Handler(BaseHTTPRequestHandler):
   x=json.loads(self.rfile.read(n).decode() or '{}')
   if not isinstance(x,dict): raise StoreError('body_must_object')
   return x
- def media_body(self):
+ def media_body(self,request_limit=None):
   try:n=int(self.headers.get('Content-Length',''))
   except ValueError:raise StoreError('invalid_content_length') from None
   if n<1:raise StoreError('body_required')
-  request_limit = MAX_MEDIA_REQUEST_BYTES or _media_limits().get('max_total_bytes')
+  request_limit = request_limit or MAX_MEDIA_REQUEST_BYTES or _media_limits().get('max_total_bytes')
   if request_limit is not None and n>request_limit:
    e=StoreError('request_too_large');e.status=413;raise e
   content_type=self.headers.get('Content-Type','')
@@ -185,18 +227,30 @@ class Handler(BaseHTTPRequestHandler):
   return self.headers.get('X-Session-Token')==SESSION_TOKEN
  def csrf(self):
   if self.command=='GET': return True
-  if urlparse(self.path).path in ('/api/auth/households','/api/auth/login'): return True
+  path=urlparse(self.path).path
+  if app_access.local_first_enabled():
+   if not self.origin_allowed():return False
+   if path=='/api/app/login':return True
+   if path=='/api/app/logout' or path.startswith('/api/ai/') or path.startswith('/api/backups/'):
+    return app_access.request_authorized(self.headers.get('Cookie'),self.headers.get('X-CSRF-Token'),write=True) is not None
+   return False
+  if path in ('/api/auth/households','/api/auth/login'): return True
   # New account sessions use X-Auth-Token; retain legacy local token for v4 UI.
   if self.headers.get('X-Auth-Token'): return True
   if self.headers.get('X-Session-Token')!=SESSION_TOKEN:return False
   o=self.headers.get('Origin',''); expected=ALLOWED_ORIGIN or ('http://'+self.headers.get('Host',''))
   return not o or o==expected
+ def backup_credentials(self):
+  values=(self.headers.get('X-Faas-Access-Key-Id'),self.headers.get('X-Faas-Secret-Access-Key'),self.headers.get('X-Faas-Session-Token'))
+  return cloud_backup.RequestCredentials(*values) if all(values) else None
  def _auth_ctx(self, permission=None, household_id=None):
   token=self.headers.get('X-Auth-Token')
   if not token:return None
   try:return STORE.authorize(token, permission, household_id) if permission else STORE.authenticate(token)
   except StoreError: return None
- def do_OPTIONS(self): self.send_response(204);self.send_header('Access-Control-Allow-Methods','GET, POST, OPTIONS');self.send_header('Access-Control-Allow-Headers','Content-Type, Idempotency-Key, X-Session-Token, X-Auth-Token, Range');self.end_headers()
+ def do_OPTIONS(self):
+  if not self.origin_allowed():return self.send_json(403,{'ok':False,'error':'origin_rejected'})
+  self.send_response(204);self.send_header('Access-Control-Allow-Methods','GET, POST, OPTIONS');self.send_header('Access-Control-Allow-Headers','Content-Type, Idempotency-Key, X-Session-Token, X-Auth-Token, X-CSRF-Token, Range');self.send_header('Access-Control-Max-Age','600');self.end_headers()
  def do_GET(self):
   try:return self._do_GET()
   except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
@@ -204,10 +258,29 @@ class Handler(BaseHTTPRequestHandler):
   except Exception:return self.send_json(500,{'ok':False,'error':'internal_server_error'})
  def _do_GET(self):
   p=unquote(urlparse(self.path).path)
+  if app_access.local_first_enabled() and p.startswith('/api/') and not self.origin_allowed():return self.send_json(403,{'ok':False,'error':'origin_rejected'})
+  if app_access.local_first_enabled() and p=='/':return self.send_json(200,{'ok':True,'service':'bingli-beta-api','kind':'api','frontend_hosted':False})
+  if p=='/api/app/config':
+   if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
+   return self.send_json(200,{'ok':True,'mode':'local_first','access_configured':app_access.configured(),'cloud_backup_configured':cloud_backup.configured(),'product_name':'病历不归零·内测版','data_location':'this_device','backup_mode':'encrypted_archive'})
+  if p=='/api/app/session':
+   if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
+   session=app_access.request_authorized(self.headers.get('Cookie'),write=False)
+   return self.send_json(200,{'ok':True,'authenticated':session is not None,**({'csrf_token':session.csrf,'expires_at':session.expires_at} if session else {})})
+  if p=='/api/backups':
+   if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
+   if app_access.request_authorized(self.headers.get('Cookie'),write=False) is None:return self.send_json(401,{'ok':False,'error':'authentication_required'})
+   try:return self.send_json(200,{'ok':True,'backups':cloud_backup.list_backups(credentials=self.backup_credentials())})
+   except cloud_backup.CloudBackupError as e:return self.send_json(e.status,{'ok':False,'error':e.code})
   if p=='/api/media/capabilities':
+   if app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'legacy_api_disabled'})
    return self.send_json(200,{'ok':True,'capabilities':_media_capabilities()})
   if p=='/health':
-   c=Config.from_env();return self.send_json(200,{'ok':True,'service':'medical-handoff-p0','provider':c.provider,'storage':'sqlite','mode':'local_single_household','schema_version':SCHEMA_VERSION,'session_token':SESSION_TOKEN})
+   c=Config.from_env()
+   if app_access.local_first_enabled():return self.send_json(200,{'ok':True,'service':'bingli-beta','provider':c.provider,'storage':'encrypted_on_device','mode':'local_first','schema_version':SCHEMA_VERSION,'access_configured':app_access.configured()})
+   return self.send_json(200,{'ok':True,'service':'medical-handoff-p0','provider':c.provider,'storage':'sqlite','mode':'local_single_household','schema_version':SCHEMA_VERSION,'session_token':SESSION_TOKEN})
+  if app_access.local_first_enabled() and p.startswith('/api/'):
+   return self.send_json(404,{'ok':False,'error':'legacy_api_disabled'})
   if p=='/api/events':
    ctx=self._auth_ctx()
    if self.headers.get('X-Auth-Token') and ctx is None:
@@ -268,15 +341,18 @@ class Handler(BaseHTTPRequestHandler):
     if ctx and handoff.get('household_id') not in (None,ctx['household_id']):return self.send_json(404,{'ok':False,'error':'handoff_not_found'})
     return self.send_json(200,{'ok':True,'handoff':handoff})
    except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
-  # Frontend owner may place a build under frontend/dist, or use a dev proxy.
-  if not p.startswith('/api/'):
+  # Historical mode retains its old same-origin demo. The local-first beta
+  # intentionally runs its user-facing frontend as a separate service.
+  if not app_access.local_first_enabled() and not p.startswith('/api/'):
    f=(STATIC/('index.html' if p=='/' else p.lstrip('/'))).resolve()
-   if STATIC in f.parents and f.suffix.lower() in {'.html','.js','.css','.json','.svg','.png','.jpg','.ico','.woff2'} and f.is_file():
+   if STATIC in f.parents and f.suffix.lower() in {'.html','.js','.css','.json','.webmanifest','.svg','.png','.jpg','.ico','.woff2'} and f.is_file():
     b=f.read_bytes();self.send_response(200);self.send_header('Content-Type',mimetypes.guess_type(str(f))[0] or 'application/octet-stream');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b);return
   return self.send_json(404,{'ok':False,'error':'not_found'})
  def do_POST(self):
   if not self.csrf():return self.send_json(403,{'ok':False,'error':'csrf_or_origin_rejected'})
   p=urlparse(self.path).path
+  if app_access.local_first_enabled() and p.startswith('/api/') and p not in {'/api/app/login','/api/app/logout','/api/ai/organize','/api/backups/upload-grant','/api/backups/download-grant'} and not p.startswith('/api/ai/media/'):
+   return self.send_json(404,{'ok':False,'error':'legacy_api_disabled'})
   if p.startswith('/api/media/') and not p.startswith('/api/media/uploads'):
    try:self.media_write_enabled()
    except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
@@ -286,10 +362,41 @@ class Handler(BaseHTTPRequestHandler):
     if isinstance(e,StoreError) or hasattr(e,'code'):
      return self.send_json(_media_error_status(e),{'ok':False,'error':_media_error_code(e)})
     return self.send_json(500,{'ok':False,'error':'internal_server_error'})
+  if p=='/api/ai/media/recognize':
+   try:return self._do_local_first_media_recognize()
+   except (StoreError,MediaStoreError,RecognitionError) as e:
+    return self.send_json(_media_error_status(e),{'ok':False,'error':_media_error_code(e),'retryable':bool(getattr(e,'retryable',False))})
+   except Exception:return self.send_json(500,{'ok':False,'error':'internal_server_error','retryable':False})
   try:b=self.body()
   except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
   except (json.JSONDecodeError,UnicodeDecodeError,ValueError):return self.send_json(400,{'ok':False,'error':'invalid_json_payload'})
   try:
+   if p=='/api/app/login':
+    if not app_access.configured():return self.send_json(503,{'ok':False,'error':'access_not_configured'})
+    login_id=self.client_address[0]
+    if not app_access.login_allowed(login_id):return self.send_json(429,{'ok':False,'error':'login_rate_limited'})
+    if not app_access.verify_password(b.get('password')):
+     app_access.record_login_result(login_id,False);return self.send_json(401,{'ok':False,'error':'invalid_credentials'})
+    app_access.record_login_result(login_id,True)
+    session,cookie=app_access.issue_session()
+    return self.send_json(200,{'ok':True,'csrf_token':session.csrf,'expires_at':session.expires_at},{'Set-Cookie':app_access.cookie_header(cookie)})
+   if p=='/api/app/logout':
+    return self.send_json(200,{'ok':True},{'Set-Cookie':app_access.cookie_header('',clear=True)})
+   if p=='/api/backups/upload-grant':
+    try:grant=cloud_backup.create_upload_grant(b.get('size'),b.get('sha256'),credentials=self.backup_credentials())
+    except cloud_backup.CloudBackupError as e:return self.send_json(e.status,{'ok':False,'error':e.code})
+    return self.send_json(201,{'ok':True,'grant':grant})
+   if p=='/api/backups/download-grant':
+    try:grant=cloud_backup.create_download_grant(b.get('object_key'),credentials=self.backup_credentials())
+    except cloud_backup.CloudBackupError as e:return self.send_json(e.status,{'ok':False,'error':e.code})
+    return self.send_json(200,{'ok':True,'grant':grant})
+   if p=='/api/ai/organize':
+    payload=local_first_model_evidence(b)
+    safety=scan_danger(payload['raw_text'])
+    try:r=organize_event(payload)
+    except Exception as ex:
+     return self.send_json(422,{'ok':False,'ai_failed':True,'error':'ai_organize_failed','trace_id':'tr_'+secrets.token_hex(16),'raw_text_sha256':hashlib.sha256(payload['raw_text'].encode()).hexdigest(),'input_sha256':payload_sha256(payload),'prompt_version':PROMPT_VERSION,'prompt_sha256':PROMPT_SHA256,'schema_version':SCHEMA_VERSION,'raw_text_preserved_on_device':True,'local_safety':safety,**configured_model_metadata(),**model_failure_details(ex)})
+    return self.send_json(200,{'ok':True,'raw_text_preserved_on_device':True,**r})
    if p=='/api/auth/households':
     result=STORE.create_household(b.get('name'),b.get('display_name'),b.get('role','owner'),b.get('external_key'),b.get('password'))
     login=STORE.login(user_id=result['user_id'],household_id=result['household_id'],password=b.get('password'))
@@ -378,6 +485,28 @@ class Handler(BaseHTTPRequestHandler):
   except StoreError as e:return self.send_json(e.status,{'ok':False,'error':str(e)})
   except Exception:return self.send_json(500,{'ok':False,'error':'internal_server_error'})
   return self.send_json(404,{'ok':False,'error':'not_found'})
+ def _do_local_first_media_recognize(self):
+  if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
+  try:limit=int(os.getenv('APP_AI_MEDIA_MAX_BYTES',str(20*1024*1024)))
+  except ValueError:raise StoreError('media_limit_invalid') from None
+  if limit<1 or limit>25*1024*1024:raise StoreError('media_limit_invalid')
+  fields,files=self.media_body(limit+1024*1024)
+  if set(files)!={'file'} or set(fields)!={'kind','content_type','attempt_id'}:raise StoreError('invalid_multipart_payload')
+  media=files['file'];kind=fields['kind'];content_type=fields['content_type'];attempt_id=fields['attempt_id']
+  if len(media['data'])>limit:
+   error=StoreError('limit_exceeded');error.status=413;raise error
+  suffix=Path(media['filename']).suffix[:12] if media.get('filename') else ''
+  path=None
+  try:
+   with tempfile.NamedTemporaryFile(prefix='bingli-ai-',suffix=suffix,delete=False) as temporary:
+    temporary.write(media['data']);path=Path(temporary.name)
+   recognition=recognize_file(path,kind=kind,content_type=content_type,attempt_id=attempt_id,max_bytes=limit)
+   local_safety=scan_danger(recognition['text'])
+   return self.send_json(200,{'ok':True,'recognition':recognition,'local_safety':local_safety})
+  finally:
+   if path is not None:
+    try:path.unlink(missing_ok=True)
+    except OSError:pass
  def _do_media_upload_POST(self,p):
   self.media_write_enabled()
   backend=self.media_backend();key=self.headers.get('Idempotency-Key')
@@ -421,5 +550,5 @@ class Handler(BaseHTTPRequestHandler):
    media,created=backend.complete_upload(upload_id,key,household_id)
    return self.send_json(201 if created else 200,{'ok':True,'created':created,'media':_public_value(media)})
   return self.send_json(404,{'ok':False,'error':'not_found'})
-def serve(host='127.0.0.1',port=None): ThreadingHTTPServer((host,int(os.getenv('API_PORT',port or 18768))),Handler).serve_forever()
+def serve(host=None,port=None): ThreadingHTTPServer((host or os.getenv('API_HOST','127.0.0.1'),int(os.getenv('API_PORT',os.getenv('PORT',port or 18768)))),Handler).serve_forever()
 if __name__=='__main__':serve()
