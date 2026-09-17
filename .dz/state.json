@@ -7,7 +7,7 @@
   },
   "run": {
     "status": "active",
-    "product_verdict": "not_assessed",
+    "product_verdict": "partially_verified",
     "stage": "plan_accepted",
     "next_action": "先修订规格和计划，再实现设备绑定、浏览器实测并发布 GitHub 主干",
     "waiting_for": null,
@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-17T11:13:03+00:00"
+    "updated_at": "2026-09-17T11:36:03+00:00"
   },
   "decisions": {
     "intent": {
@@ -55,14 +55,14 @@
     }
   },
   "target": {
-    "id": null,
-    "contract_sha256": null,
-    "revision": null,
-    "environment": null,
-    "source": null,
-    "artifact_path": null,
-    "artifact_sha256": null,
-    "set_at": null
+    "id": "d4772c034d2ae431cf7426bce482ad83544c04c589289b7344a24e0eae48bf59",
+    "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+    "revision": "bd4a069",
+    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769",
+    "source": "git commit bd4a069 and 2026-09-17 full automated/browser verification",
+    "artifact_path": "docs/evidence/device-binding-browser-2026-09-17.md",
+    "artifact_sha256": "89a14728e3f8d074d2a7facc9cb10b8d846c04f267a48a2e2b80fb56e066c819",
+    "set_at": "2026-09-17T11:35:00+00:00"
   },
   "requirements": {
     "spec_sha256": "011186e5455fa1483d35e9390dd60d884c534a8529fdbd4bb9a4883e0e50973c",
@@ -470,14 +470,17 @@
       "required": true,
       "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
       "phase": "build",
-      "status": "pending",
+      "status": "verified",
       "acceptance": [
         "老人端无网站密码框；家属短时链接可绑定设备；持久设备会话可跨刷新复用；失效只提示家属且不阻断本地功能；来源与 CSRF 防护保持有效；浏览器完成真实操作验证"
       ],
-      "evidence_ids": [],
-      "note": null,
+      "evidence_ids": [
+        "E-W1B-DEVICE-BINDING-BD4A069",
+        "E-W1B-DEVICE-BINDING-BD4A069-FINAL"
+      ],
+      "note": "提交 bd4a069 已实现并通过 Python 770、Node 37、TypeScript、设备绑定安全专项和隔离真实浏览器验证。",
       "blocker": null,
-      "updated_at": "2026-09-17T11:13:03+00:00"
+      "updated_at": "2026-09-17T11:35:31+00:00"
     }
   ],
   "evidence": [
@@ -735,6 +738,40 @@
       "result": "passed",
       "resolves": [],
       "recorded_at": "2026-09-17T06:02:24+00:00"
+    },
+    {
+      "id": "E-W1B-DEVICE-BINDING-BD4A069",
+      "work_item_id": "W1B",
+      "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+      "target_id": "d122b66b197a5bbf072f8d4346b8d6804efc89d443568068a1a4e966f6c2c786",
+      "acceptance": "老人端无网站密码框；家属短时链接可绑定设备；持久设备会话可跨刷新复用；失效只提示家属且不阻断本地功能；来源与 CSRF 防护保持有效；浏览器完成真实操作验证",
+      "kind": "automated_and_browser",
+      "claim": "提交 bd4a069 取消老人端第二密码，设备绑定与刷新复用通过，隔离浏览器完成建库、保存、刷新解锁和设置状态检查",
+      "source": "pytest 770; node 37; tsc; ego-browser isolated task space",
+      "artifact_path": "docs/evidence/device-binding-browser-2026-09-17.md",
+      "artifact_sha256": "89a14728e3f8d074d2a7facc9cb10b8d846c04f267a48a2e2b80fb56e066c819",
+      "revision": "bd4a069",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-17T11:33:33+00:00"
+    },
+    {
+      "id": "E-W1B-DEVICE-BINDING-BD4A069-FINAL",
+      "work_item_id": "W1B",
+      "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+      "target_id": "d4772c034d2ae431cf7426bce482ad83544c04c589289b7344a24e0eae48bf59",
+      "acceptance": "老人端无网站密码框；家属短时链接可绑定设备；持久设备会话可跨刷新复用；失效只提示家属且不阻断本地功能；来源与 CSRF 防护保持有效；浏览器完成真实操作验证",
+      "kind": "automated_and_browser",
+      "claim": "提交 bd4a069 取消老人端第二密码，设备绑定与刷新复用通过，隔离浏览器完成建库、保存、刷新解锁和设置状态检查",
+      "source": "pytest 770; node 37; tsc; ego-browser isolated task space",
+      "artifact_path": "docs/evidence/device-binding-browser-2026-09-17.md",
+      "artifact_sha256": "89a14728e3f8d074d2a7facc9cb10b8d846c04f267a48a2e2b80fb56e066c819",
+      "revision": "bd4a069",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-17T11:35:31+00:00"
     }
   ],
   "risks": [
@@ -1113,18 +1150,20 @@
       "id": "ELDER-SECOND-PASSWORD-20260917",
       "title": "老人端被要求重复输入网站访问密码",
       "kind": "implementation_gap",
-      "status": "open",
+      "status": "verified",
       "source": "2026-09-17 用户截图与现场反馈",
       "expected": "老人只解锁一次本机资料，在线能力由家属绑定后静默使用，AI 外发仍逐次确认",
       "actual": "本机解锁后首次在线操作又弹出网站访问密码，且会话可能在浏览器关闭后丢失",
       "impact": "真实老人用户会困惑、受阻或放弃使用，破坏完整内测体验",
       "route": "work_item",
       "work_item_id": "W1B",
-      "evidence_ids": [],
-      "resolution": null,
-      "prevention": null,
+      "evidence_ids": [
+        "E-W1B-DEVICE-BINDING-BD4A069-FINAL"
+      ],
+      "resolution": "老人前端已删除网站密码弹窗和管理员登录调用；本地开发严格回环自动绑定，线上家属短时链接绑定持久设备会话；绑定失效不阻断本地记录。",
+      "prevention": "保留前端无第二密码合同测试、令牌/Cookie/来源/CSRF 回归和刷新后单口令真实浏览器验收。",
       "created_at": "2026-09-17T11:13:03+00:00",
-      "updated_at": "2026-09-17T11:13:03+00:00"
+      "updated_at": "2026-09-17T11:36:03+00:00"
     }
   ]
 }
