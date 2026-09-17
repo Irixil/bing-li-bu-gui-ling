@@ -7,9 +7,9 @@
   },
   "run": {
     "status": "active",
-    "product_verdict": "partially_verified",
+    "product_verdict": "implemented_unverified",
     "stage": "plan_accepted",
-    "next_action": "先修订规格和计划，再实现设备绑定、浏览器实测并发布 GitHub 主干",
+    "next_action": "后续在正式双服务云环境配置前端地址后，用家属绑定链接完成手机内测；本地 5173/18768 已可直接继续测试。",
     "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-17T11:36:03+00:00"
+    "updated_at": "2026-09-17T11:39:51+00:00"
   },
   "decisions": {
     "intent": {
@@ -55,14 +55,14 @@
     }
   },
   "target": {
-    "id": "d4772c034d2ae431cf7426bce482ad83544c04c589289b7344a24e0eae48bf59",
+    "id": "5e60db0a45fcda46687bce80882032ad90139bfda5fb381ff8c93ee1417ba8de",
     "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
-    "revision": "bd4a069",
-    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769",
-    "source": "git commit bd4a069 and 2026-09-17 full automated/browser verification",
+    "revision": "5bc1035",
+    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769; B-release gate 7/7",
+    "source": "git commit 5bc1035; full tests, isolated browser and release gate passed",
     "artifact_path": "docs/evidence/device-binding-browser-2026-09-17.md",
     "artifact_sha256": "89a14728e3f8d074d2a7facc9cb10b8d846c04f267a48a2e2b80fb56e066c819",
-    "set_at": "2026-09-17T11:35:00+00:00"
+    "set_at": "2026-09-17T11:38:23+00:00"
   },
   "requirements": {
     "spec_sha256": "011186e5455fa1483d35e9390dd60d884c534a8529fdbd4bb9a4883e0e50973c",
@@ -470,17 +470,18 @@
       "required": true,
       "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
       "phase": "build",
-      "status": "verified",
+      "status": "implemented_unverified",
       "acceptance": [
         "老人端无网站密码框；家属短时链接可绑定设备；持久设备会话可跨刷新复用；失效只提示家属且不阻断本地功能；来源与 CSRF 防护保持有效；浏览器完成真实操作验证"
       ],
       "evidence_ids": [
         "E-W1B-DEVICE-BINDING-BD4A069",
-        "E-W1B-DEVICE-BINDING-BD4A069-FINAL"
+        "E-W1B-DEVICE-BINDING-BD4A069-FINAL",
+        "E-W1B-DEVICE-BINDING-5BC1035"
       ],
       "note": "提交 bd4a069 已实现并通过 Python 770、Node 37、TypeScript、设备绑定安全专项和隔离真实浏览器验证。",
       "blocker": null,
-      "updated_at": "2026-09-17T11:35:31+00:00"
+      "updated_at": "2026-09-17T11:38:24+00:00"
     }
   ],
   "evidence": [
@@ -772,6 +773,23 @@
       "result": "passed",
       "resolves": [],
       "recorded_at": "2026-09-17T11:35:31+00:00"
+    },
+    {
+      "id": "E-W1B-DEVICE-BINDING-5BC1035",
+      "work_item_id": "W1B",
+      "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+      "target_id": "5e60db0a45fcda46687bce80882032ad90139bfda5fb381ff8c93ee1417ba8de",
+      "acceptance": "老人端无网站密码框；家属短时链接可绑定设备；持久设备会话可跨刷新复用；失效只提示家属且不阻断本地功能；来源与 CSRF 防护保持有效；浏览器完成真实操作验证",
+      "kind": "release_gate_and_browser",
+      "claim": "发布提交 5bc1035 保留 bd4a069 的设备绑定实现与验证记录，并通过 B-release gate 7/7",
+      "source": "pytest 770; node 37; tsc; ego-browser; verify_b_release 7/7",
+      "artifact_path": "docs/evidence/device-binding-browser-2026-09-17.md",
+      "artifact_sha256": "89a14728e3f8d074d2a7facc9cb10b8d846c04f267a48a2e2b80fb56e066c819",
+      "revision": "5bc1035",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769; B-release gate 7/7",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-17T11:38:24+00:00"
     }
   ],
   "risks": [
@@ -990,6 +1008,30 @@
       "decision_by": "project owner",
       "decision_reference": "2026-09-17 用户发现老人端第二次网站密码不合理，要求先改成无需老人重复输入、完成测试后再上传 GitHub。",
       "decided_at": "2026-09-17T11:09:21+00:00"
+    },
+    {
+      "id": "RISK-GITHUB-MAIN-DEVICE-BINDING-20260917",
+      "title": "将单口令设备绑定修复发布到 GitHub main",
+      "level": "medium",
+      "action_kind": "public_release",
+      "consequence": "GitHub main 将从 4ecbd92 快进到 5bc1035，所有使用 main 的人会立即获得完整前端、设备绑定、测试和 README 更新。",
+      "safer_option": "只推送当前功能分支并通过 PR 合并，不直接更新 main。",
+      "recovery": "旧提交 4ecbd92 和中间提交仍保留；如需撤回可新增反向提交恢复，不删除分支或标签。",
+      "scope": "仅执行 git push origin 5bc1035:main；远端 main 已只读核对为 4ecbd92；不强推、不修改其他分支、标签、云资源或密钥。",
+      "lease_contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+      "lease_target_id": "5e60db0a45fcda46687bce80882032ad90139bfda5fb381ff8c93ee1417ba8de",
+      "lease_revision": "5bc1035",
+      "lease_environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769; B-release gate 7/7",
+      "amount_limit": null,
+      "expires_at": "2026-09-24T23:59:59+08:00",
+      "authorization_pending": false,
+      "decision": "accepted",
+      "action_status": "completed",
+      "action_reference": "GitHub push result: 4ecbd92..5bc1035 5bc1035 -> main; ls-remote confirms refs/heads/main=5bc1035513792193d6c591db24a28788299a0f19.",
+      "action_at": "2026-09-17T11:39:51+00:00",
+      "decision_by": "project owner",
+      "decision_reference": "2026-09-17 用户明确要求改完、测试并丢到 GitHub，且此前明确要求直接覆盖主干；本次范围为经验证的 5bc1035 快进发布。",
+      "decided_at": "2026-09-17T11:39:07+00:00"
     }
   ],
   "issues": [
@@ -1150,20 +1192,18 @@
       "id": "ELDER-SECOND-PASSWORD-20260917",
       "title": "老人端被要求重复输入网站访问密码",
       "kind": "implementation_gap",
-      "status": "verified",
+      "status": "implemented_unverified",
       "source": "2026-09-17 用户截图与现场反馈",
       "expected": "老人只解锁一次本机资料，在线能力由家属绑定后静默使用，AI 外发仍逐次确认",
       "actual": "本机解锁后首次在线操作又弹出网站访问密码，且会话可能在浏览器关闭后丢失",
       "impact": "真实老人用户会困惑、受阻或放弃使用，破坏完整内测体验",
       "route": "work_item",
       "work_item_id": "W1B",
-      "evidence_ids": [
-        "E-W1B-DEVICE-BINDING-BD4A069-FINAL"
-      ],
+      "evidence_ids": [],
       "resolution": "老人前端已删除网站密码弹窗和管理员登录调用；本地开发严格回环自动绑定，线上家属短时链接绑定持久设备会话；绑定失效不阻断本地记录。",
       "prevention": "保留前端无第二密码合同测试、令牌/Cookie/来源/CSRF 回归和刷新后单口令真实浏览器验收。",
       "created_at": "2026-09-17T11:13:03+00:00",
-      "updated_at": "2026-09-17T11:36:03+00:00"
+      "updated_at": "2026-09-17T11:38:23+00:00"
     }
   ]
 }
