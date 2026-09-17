@@ -36,7 +36,7 @@
     if (document.getElementById('localVaultGate')) return;
     const gate = document.createElement('section');
     gate.id = 'localVaultGate'; gate.className = 'secure-gate'; gate.setAttribute('role', 'dialog'); gate.setAttribute('aria-modal', 'true');
-    gate.innerHTML = `<div class="secure-card"><p class="secure-kicker">设备加密</p><h1 id="vaultTitle">解锁本机健康资料</h1><p id="vaultExplain">健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。</p><form id="vaultForm"><label for="vaultPassphrase">恢复口令</label><input id="vaultPassphrase" type="password" minlength="10" autocomplete="current-password" required><label id="vaultConfirmLabel" for="vaultPassphraseConfirm" class="hidden">再输入一次</label><input id="vaultPassphraseConfirm" class="hidden" type="password" minlength="10" autocomplete="new-password"><button class="primary" id="vaultSubmit" type="submit">解锁</button><p id="vaultStatus" class="status" role="status"></p></form><p class="secure-foot">这是本机数据口令，与网站访问密码不是同一个。</p></div>`;
+    gate.innerHTML = `<div class="secure-card"><div class="secure-brand"><img src="assets/brand-mascot.png" alt=""><div><strong>病历不归零·内测版</strong><span>你之前的完整前端已经在这里</span></div></div><p class="secure-kicker" id="vaultKicker">本机资料已加密</p><h1 id="vaultTitle">解锁本机健康资料</h1><p id="vaultExplain">健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。</p><form id="vaultForm"><label for="vaultPassphrase">恢复口令</label><input id="vaultPassphrase" type="password" minlength="10" autocomplete="current-password" required><label id="vaultConfirmLabel" for="vaultPassphraseConfirm" class="hidden">再输入一次</label><input id="vaultPassphraseConfirm" class="hidden" type="password" minlength="10" autocomplete="new-password"><button class="primary" id="vaultSubmit" type="submit">解锁</button><p id="vaultStatus" class="status" role="status"></p></form><p class="secure-foot">这是本机数据口令，与网站访问密码不是同一个。</p></div>`;
     document.body.append(gate);
   }
 
@@ -45,7 +45,11 @@
     const gate = document.getElementById('localVaultGate');
     const status = await vault.status();
     const isSetup = !status.configured;
+    document.getElementById('vaultKicker').textContent = isSetup ? '第一次使用 · 只需设置一次' : '本机资料已加密';
     document.getElementById('vaultTitle').textContent = isSetup ? '为这台设备建立加密仓库' : '解锁本机健康资料';
+    document.getElementById('vaultExplain').textContent = isSetup
+      ? '设置完成后会马上进入完整首页。健康记录将加密保存在当前设备，恢复口令不会上传。'
+      : '健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。';
     document.getElementById('vaultSubmit').textContent = isSetup ? '建立并进入' : '解锁';
     document.getElementById('vaultConfirmLabel').classList.toggle('hidden', !isSetup);
     document.getElementById('vaultPassphraseConfirm').classList.toggle('hidden', !isSetup);
@@ -144,7 +148,8 @@
       const replay = await vault.get(`operation:event:${idempotencyKey}`);
       if (replay) return ok(200, { ok: true, created: false, event: await vault.get(eventKey(replay.record_id)) });
     }
-    const event = { record_id: id('rec'), raw_text: body.raw_text, source_kind: body.source_kind, actor_name: body.actor_name || '本地用户', occurred_time: body.occurred_time || null, recorded_at: now(), updated_at: now(), state: 'inbox', version: 1, local_safety: safety.scanDanger(body.raw_text), draft: null, related_record_ids: [] };
+    const relatedRecordIds = Array.isArray(body.related_record_ids) ? [...new Set(body.related_record_ids.filter(value => typeof value === 'string' && value.startsWith('rec_')))].slice(-10) : [];
+    const event = { record_id: id('rec'), raw_text: body.raw_text, source_kind: body.source_kind, actor_name: body.actor_name || '本地用户', occurred_time: body.occurred_time || null, recorded_at: now(), updated_at: now(), state: 'inbox', version: 1, local_safety: safety.scanDanger(body.raw_text), draft: null, related_record_ids: relatedRecordIds };
     await vault.put(eventKey(event.record_id), event); await saveHistory(event, 'created');
     if (idempotencyKey) await vault.put(`operation:event:${idempotencyKey}`, { record_id: event.record_id });
     return ok(201, { ok: true, created: true, event });

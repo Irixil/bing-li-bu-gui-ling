@@ -106,17 +106,14 @@ test('pause freezes timer, resume keeps the same recorder and previous bytes, fi
   assert.equal(h.element('finishVoiceBtn').disabled, true);
 });
 
-test('existing automatic pause callback freezes timer and keeps finish available', async () => {
+test('recording does not pretend to detect silence or pause automatically', async () => {
   const h = harness(); const start = h.click('recordBtn'); h.allow(); await start;
   h.advance(12000);
   const silence = [...h.timers.values()].find(timer => !timer.interval && timer.ms === 12000);
-  silence.fn();
-  assert.equal(h.recorders[0].state, 'paused');
+  assert.equal(silence, undefined);
+  assert.equal(h.recorders[0].state, 'recording');
   assert.equal(h.element('voiceTimer').textContent, '00:12');
   h.advance(7000);
-  assert.equal(h.element('voiceTimer').textContent, '00:12');
+  assert.equal(h.element('voiceTimer').textContent, '00:19');
   assert.equal(h.element('finishVoiceBtn').disabled, false);
-  await h.click('resumeBtn');
-  h.advance(3000);
-  assert.equal(h.element('voiceTimer').textContent, '00:15');
 });

@@ -1,0 +1,7 @@
+Use case: background-extraction
+Asset type: production app logo mascot, transparent PNG
+Primary request: Remove only the pale lavender background from the supplied image and isolate the complete goat mascot holding the medical record sheet.
+Input image: Image 1 is the edit target and sole source of truth.
+Composition/framing: Keep the entire mascot, both ears, both horns, both arms, body, outline, and the full medical record sheet. Crop to a square around the mascot with modest even transparent padding; do not crop any outline.
+Constraints: Preserve the exact original character design, silhouette, pose, proportions, facial expression, navy outlines, cream fur, peach horns and ears, violet medical sheet, shading, highlights, and all internal details. Change only the background to genuine alpha transparency. No redesign, no cleanup that changes shapes, no recoloring, no added stroke, no shadow, no glow, no backdrop, no text, no watermark.
+Output: high-resolution square PNG with real transparency, suitable for display from 40px to 240px.

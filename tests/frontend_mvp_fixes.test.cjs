@@ -149,7 +149,7 @@ test('a non-retryable recognition failure keeps the original but omits retry act
   assert.doesNotMatch(html, /识别 \/ 重试/);
 });
 
-test('reselecting the same photo or audio clears the file input value', async () => {
+test('reselecting the same photo or audio clears the file input value after retaining bytes', async () => {
   const h = harness({ media: true });
   h.run('setMediaCapability({enabled:true,disabled_reason:null});uploadMedia=async()=>null;');
   const photoInput = h.element('photoInput');
@@ -157,7 +157,7 @@ test('reselecting the same photo or audio clears the file input value', async ()
   const file = new Blob(['synthetic'], { type: 'image/png' });
   photoInput.files = [file];
   photoInput.value = '/tmp/same.png';
-  photoInput.onchange({ target: photoInput });
+  await photoInput.onchange({ target: photoInput });
   assert.equal(photoInput.value, '');
   audioInput.files = [new Blob(['synthetic'], { type: 'audio/webm' })];
   audioInput.value = '/tmp/same.wav';

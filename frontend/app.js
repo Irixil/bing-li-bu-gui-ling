@@ -1,23 +1,39 @@
 const API = globalThis.BingliConfig?.apiBaseUrl || '';
 let token = localStorage.getItem('session_token') || '', modelProvider = '', saveBusy = false;
-const PENDING_SAVE_KEY = 'elder_pending_save_v1';
-let events = [], current = null, mediaRecorder = null, chunks = [], timerId = null, startedAt = 0, elapsedMs = 0, silenceTimer = null, demoMode = false, localMode = Boolean(globalThis.HealthLocal), voicePermissionPending = false, voiceUploadPending = false;
+const PENDING_SAVE_KEY = 'elder_voice_supplement_v2';
+let events = [], current = null, detailRequestSerial = 0, mediaRecorder = null, chunks = [], timerId = null, startedAt = 0, elapsedMs = 0, demoMode = false, localMode = Boolean(globalThis.HealthLocal), voicePermissionPending = false, voiceUploadPending = false;
+let voiceConversationRecordIds = [], voiceCurrentEvent = null, voiceTurns = [], voiceOrganizeBusy = false;
 const handoffSelection=new Set(),knownHandoffEvents=new Set();
+const DEMO_KEY = 'elder_demo_events_v1';
+const PHOTO_KEY = 'elder_demo_photos_v1';
 const $ = id => document.getElementById(id);
 const views = [...document.querySelectorAll('.view')];
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
+function reducedMotion(){return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true}
+function reveal(element,titleSelector){if(!element)return;element.scrollIntoView?.({behavior:reducedMotion()?'auto':'smooth',block:'start'});element.querySelector?.(titleSelector)?.focus?.({preventScroll:true})}
 function clearRecordPanels(){
+  detailRequestSerial++;
   const detail=$('detail');if(detail){detail.classList.add('hidden');detail.innerHTML=''}
   const handoff=$('handoff');if(handoff){handoff.classList.add('hidden');handoff.innerHTML=''}
   const banner=$('dangerBanner');if(banner){banner.classList.add('hidden');banner.innerHTML=''}
   current=null;
 }
 function showView(id){
+  const recordingActive=mediaRecorder&&['recording','paused'].includes(mediaRecorder.state);
+  if(id!=='voiceView'&&recordingActive&&!voiceUploadPending){toast('这段录音还没保存，请先点“说完了，保存原录音”');reveal($('voiceView'),'h1');return false}
   // Detail, handoff and the fixed safety banner belong to the records view.
   // Clear them whenever navigation starts so an older event cannot leak into
   // a different screen or appear as if it were the newly selected record.
   clearRecordPanels();
-  views.forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===id));window.scrollTo({top:0,behavior:'smooth'});if(id==='recordsView')loadEvents();if(id==='homeView')renderHome();if(id==='settingsView')refreshStorageStatus()
+  views.forEach(v=>{const active=v.id===id;v.classList.toggle('active',active);v.setAttribute?.('aria-hidden',String(!active))});
+  document.querySelector?.('.app-shell')?.classList.toggle('conversation-active',id==='voiceView');
+  document.querySelectorAll('[data-view]').forEach(b=>{
+    const active=b.dataset.view===id;b.classList.toggle('active',active);
+    if(b.classList.contains('nav-item'))active?b.setAttribute?.('aria-current','page'):b.removeAttribute?.('aria-current');
+  });
+  window.scrollTo({top:0,behavior:reducedMotion()?'auto':'smooth'});
+  const activeView=views.find(v=>v.id===id);activeView?.querySelector?.('h1')?.focus?.({preventScroll:true});
+  if(id==='recordsView')loadEvents();if(id==='homeView')renderHome();if(id==='settingsView')refreshStorageStatus();return true
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
   // Media entry buttons are disabled after capability discovery when the
@@ -60,12 +76,16 @@ function safetyHtml(s){
   return html;
 }
 function safetyBanner(s){const b=$('dangerBanner');if(!b)return;if(s?.danger_detected){b.innerHTML=`<b>需要及时关注</b><br>${escapeHtml(s.danger_reminder||'记录中出现需要尽快请专业人员判断的描述，请联系当地急救服务或专业人员。')}`;b.classList.remove('hidden')}else b.classList.add('hidden')}
-function stateLabel(s){return ({inbox:'已保存，待整理',draft:'整理草稿，待核对',needs_review:'退回待整理',recorded:'已核对记录准确',superseded:'旧版本'})[s]||s}
+function stateLabel(s){return ({inbox:'已保存，待整理',draft:'整理草稿，待核对',needs_review:'退回待整理',recorded:'已核对记录准确',superseded:'旧版本'})[s]||'状态待确认'}
 const EVENT_KIND_LABELS={symptom:'症状记录',measurement:'指标记录',medication:'用药记录',instruction:'医嘱或建议',document:'资料记录',question:'待核对问题',handoff:'交接记录',other:'其他记录'};
 const REVIEW_ROLE_LABELS={none:'暂未指定',family:'家属或照护者',clinician_or_pharmacist:'医生、护士或药师',emergency_services:'急救服务或专业人员'};
 const ESCALATION_LABELS={none:'常规核对',urgent:'尽快核对',emergency:'需要及时关注'};
 const CERTAINTY_LABELS={exact:'具体时间',range:'时间范围',daypart:'时段',relative:'原话中的相对时间',unknown:'时间未说明'};
 const SOURCE_KIND_LABELS={elder:'老人自述',family_observation:'家属观察',family_report:'家属转述',caregiver:'照护员记录',clinician_evidence:'医生或药师资料',document:'资料摘要',audio_transcript:'录音转写',system:'系统记录',unknown:'来源未标明'};
+const MEDIA_KIND_LABELS={audio:'录音原件',image:'照片原件'};
+const SAVE_STATUS_LABELS={uploading:'上传中，原件尚未保存完整',saved:'原件已保存',failed:'原件保存失败'};
+const RECOGNITION_LABELS={not_started:'待识别',processing:'识别处理中',succeeded:'文字已识别',failed:'识别失败',interrupted:'识别中断'};
+const LINK_LABELS={not_linked:'尚未关联记录',pending:'关联处理中',linked:'已关联记录',link_failed:'关联失败'};
 function dateText(v){return v?new Date(v).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}
 function renderArchive(){
   const ebox=$('archiveEvents'); if(!ebox)return;
@@ -76,32 +96,121 @@ function renderArchive(){
 function latestFirst(items){return items.slice().sort((a,b)=>{const at=Date.parse(a.recorded_at||a.created_at||a.updated_at||'')||0;const bt=Date.parse(b.recorded_at||b.created_at||b.updated_at||'')||0;return bt-at||String(b.record_id||b.media_id||'').localeCompare(String(a.record_id||a.media_id||''))})}
 function renderHome(){const box=$('homeRecent');if(!box)return;if(!events.length){box.innerHTML='<p class="muted">还没有记录，先说下今天的情况吧。</p>';return}box.innerHTML=latestFirst(events.filter(e=>e.state!=='superseded')).slice(0,3).map(e=>`<button class="recent-item" data-id="${e.record_id}"><span class="date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</span><p>${escapeHtml(e.raw_text)}</p></button>`).join('');box.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{showView('recordsView');setTimeout(()=>showDetail(b.dataset.id),80)})}
 function filteredEvents(){const keyword=$('filterKeyword')?.value.trim().toLowerCase()||'',kind=$('filterKind')?.value||'',state=$('filterState')?.value||'',start=$('filterStart')?.value?Date.parse($('filterStart').value+'T00:00:00'):null,end=$('filterEnd')?.value?Date.parse($('filterEnd').value+'T23:59:59.999'):null;return latestFirst(events.filter(e=>e.state!=='superseded')).filter(e=>{const at=Date.parse(e.recorded_at),haystack=`${e.raw_text||''} ${e.draft?.summary||''}`.toLowerCase();return (!keyword||haystack.includes(keyword))&&(!kind||e.draft?.event_kind===kind)&&(!state||e.state===state)&&(!start||at>=start)&&(!end||at<=end)})}
-function renderList(){const box=$('eventsList');if(!box)return;const visible=filteredEvents();if(!visible.length){box.innerHTML=`<p class="muted">${events.some(e=>e.state!=='superseded')?'没有符合当前筛选的记录。':'还没有记录，先写下第一次情况吧。'}</p>`;return}box.innerHTML='';visible.forEach(e=>{if(!knownHandoffEvents.has(e.record_id)){knownHandoffEvents.add(e.record_id);handoffSelection.add(e.record_id)}const n=document.importNode($('eventTpl').content,true);n.querySelector('.event-date').textContent=`${dateText(e.recorded_at)} · ${stateLabel(e.state)}`;n.querySelector('.event-raw').textContent=e.raw_text;n.querySelector('.badges').innerHTML=(e.local_safety?.danger_detected?'<span class="badge warn">需要关注</span>':'')+(e.local_safety?.clinical_review_required?'<span class="badge warn">待专业复核</span>':'');const checkbox=n.querySelector('.handoff-select');checkbox.checked=handoffSelection.has(e.record_id);checkbox.onchange=()=>checkbox.checked?handoffSelection.add(e.record_id):handoffSelection.delete(e.record_id);n.querySelector('.view-btn').onclick=()=>showDetail(e.record_id);box.appendChild(n)})}
+function renderList(){const box=$('eventsList');if(!box)return;const visible=filteredEvents();if(!visible.length){box.innerHTML=`<p class="muted">${events.some(e=>e.state!=='superseded')?'没有符合当前筛选的记录。':'还没有记录，先说下第一次情况吧。'}</p>`;return}box.innerHTML='';visible.forEach(e=>{if(!knownHandoffEvents.has(e.record_id)){knownHandoffEvents.add(e.record_id);handoffSelection.add(e.record_id)}const n=document.importNode($('eventTpl').content,true);n.querySelector('.event-date').textContent=`${dateText(e.recorded_at)} · ${stateLabel(e.state)}`;n.querySelector('.event-raw').textContent=e.raw_text;n.querySelector('.badges').innerHTML=(e.local_safety?.danger_detected?'<span class="badge warn">需要关注</span>':'')+(e.local_safety?.clinical_review_required?'<span class="badge warn">待专业复核</span>':'');const checkbox=n.querySelector('.handoff-select');if(checkbox){checkbox.checked=handoffSelection.has(e.record_id);checkbox.onchange=()=>checkbox.checked?handoffSelection.add(e.record_id):handoffSelection.delete(e.record_id)}n.querySelector('.view-btn').onclick=()=>showDetail(e.record_id);box.appendChild(n)})}
 async function loadEvents(){
   const {r,j}=await api('/api/events');
-  if(r.ok){demoMode=false;events=j.events||[];setModeLabel();renderList();renderHome();renderArchive();}
-  else {demoMode=true;setModeLabel();toast('记录暂时无法读取，请恢复连接后刷新；已保存内容不会删除');}
+  if(r.ok){demoMode=false;events=j.events||[];setModeLabel();renderList();renderHome();renderArchive();return true;}
+  demoMode=true;setModeLabel();
+  const message='<div class="load-error" role="status"><b>记录暂时无法读取</b><span>请恢复连接后重试；已保存内容不会删除。</span><button class="outline" type="button" data-retry-events>重新读取</button></div>';
+  for(const id of ['homeRecent','eventsList','archiveEvents']){const box=$(id);if(!box)continue;box.innerHTML=message;box.querySelectorAll?.('[data-retry-events]').forEach(button=>button.onclick=loadEvents)}
+  toast('记录暂时无法读取，请恢复连接后重试');return false;
 }
-async function save(){
+function setVoiceStatus(text,tone=''){
+  const status=$('voiceConversationStatus');if(!status)return;
+  status.textContent=text;status.className='conversation-status'+(tone?' '+tone:'');
+}
+function setVoiceComposerEnabled(enabled){
+  const input=$('voiceTextInput'),send=$('voiceTextSend');
+  if(input)input.disabled=!enabled;if(send)send.disabled=!enabled||!input?.value.trim();
+}
+function voiceTurnHtml(turn){
+  const assistant=turn.side==='assistant';
+  const avatar=assistant?'<img class="chat-avatar" src="assets/brand-mascot.png" alt="" aria-hidden="true">':'';
+  let content=`<p>${escapeHtml(turn.text||'')}</p>`;
+  if(turn.summary){
+    content=`<b class="chat-result-title">整理结果（请核对）</b><p>${escapeHtml(turn.summary)}</p>`;
+    if(turn.questions?.length)content+=`<div class="chat-questions"><b>还需要核对</b>${listHtml(turn.questions)}</div>`;
+  }
+  if(turn.note)content+=`<small>${escapeHtml(turn.note)}</small>`;
+  if(turn.action==='organize')content+='<button class="chat-action" type="button" data-voice-organize>整理并查看还需补充什么</button>';
+  return `<article class="chat-turn ${assistant?'assistant-turn':'user-turn'}">${avatar}<div class="chat-bubble ${assistant?'assistant-bubble':'user-bubble'}${turn.error?' error-bubble':''}">${content}</div></article>`;
+}
+function renderVoiceConversation(){
+  const box=$('voiceConversationTurns');if(!box)return;
+  box.innerHTML=voiceTurns.map(voiceTurnHtml).join('');
+  box.querySelectorAll('[data-voice-organize]').forEach(button=>button.onclick=()=>organizeVoiceConversation(button));
+  (window.requestAnimationFrame||((fn)=>setTimeout(fn,0)))(()=>{$('voiceConversation')?.scrollTo?.({top:$('voiceConversation').scrollHeight,behavior:reducedMotion()?'auto':'smooth'})});
+}
+function upsertVoiceTurn(key,turn){
+  const index=voiceTurns.findIndex(item=>item.key===key);
+  const next={key,...turn};if(index>=0)voiceTurns[index]=next;else voiceTurns.push(next);
+  renderVoiceConversation();
+}
+function registerVoiceEvent(event){
+  if(!event?.record_id)return;
+  voiceCurrentEvent=event;
+  voiceConversationRecordIds=[...new Set([...voiceConversationRecordIds,event.record_id])].slice(-10);
+  setVoiceComposerEnabled(true);
+}
+function showVoiceMediaSaved(media){
+  upsertVoiceTurn('media:'+media.media_id,{side:'assistant',text:'原录音已保存，正在识别你刚才说的内容。',note:'原件已保存 · 识别中'});
+  setVoiceStatus('原件已保存，识别完成后会显示在对话中。','ok');
+}
+async function showVoiceMediaResult(media){
+  if(!media)return;
+  const rid=media.event_link?.record_id||media.record_id;
+  const text=media.recognition?.text?.trim();
+  if(media.recognition_status==='succeeded'&&text){
+    upsertVoiceTurn('media:'+media.media_id,{side:'user',text,note:`语音转写 · 原录音已保存${media.recognition?.is_mock?' · Mock 演示转写':''}`});
+    if(rid){
+      const detail=await api('/api/events/'+encodeURIComponent(rid));
+      if(detail.r.ok&&detail.j.event)registerVoiceEvent(detail.j.event);
+      else registerVoiceEvent({record_id:rid,version:media.event_link?.record_version||1,raw_text:text,state:'inbox'});
+      upsertVoiceTurn('action:'+rid,{side:'assistant',text:'这段原话已经记下。你可以在下方继续补充文字，或先看看还需要补充什么。',note:media.recognition?.is_mock?'当前是离线 Mock 演示，转写不代表原录音的真实识别结果':'操作提示，不是医疗建议',action:'organize'});
+      setVoiceStatus('原话已保存，现在可以继续说或补充文字。','ok');
+    }else{
+      upsertVoiceTurn('action:'+media.media_id,{side:'assistant',text:'转写已完成，但还没有关联到记录。请到“看病资料”中恢复关联。',error:true});
+      setVoiceStatus('转写暂未关联记录，文字补充尚未开启。','error');
+    }
+  }else{
+    upsertVoiceTurn('media:'+media.media_id,{side:'assistant',text:readableMediaError(media.recognition?.error_message,'这次没有得到可用的转写，原录音仍然保留。'),note:'可在看病资料中查看原件或重试识别',error:true});
+    setVoiceStatus('识别没有完成，原录音仍已保留。','error');
+  }
+}
+async function organizeVoiceConversation(button){
+  const event=voiceCurrentEvent;if(!event||voiceOrganizeBusy)return;
+  voiceOrganizeBusy=true;if(button){button.disabled=true;button.textContent='整理中…'}
+  setVoiceStatus('正在整理这次的原话…');
+  const x=await api('/api/events/'+encodeURIComponent(event.record_id)+'/organize',{method:'POST',body:JSON.stringify({expected_version:event.version})});
+  const saved=x.j.event||event;if(x.j.event)registerVoiceEvent(x.j.event);
+  if((x.r.ok||x.r.status===422)&&saved.draft){
+    upsertVoiceTurn('summary:'+saved.record_id,{side:'assistant',summary:saved.draft.summary||'暂无整理摘要，请以原话为准。',questions:saved.draft.follow_up_questions||[],note:x.r.status===422?'本次整理失败，展示的是之前保留的草稿':'整理草稿，不是诊断；原话始终保留'});
+  }else{
+    upsertVoiceTurn('summary-error:'+event.record_id,{side:'assistant',text:x.r.status===409?'这条记录已有新版本，请到“我的记录”刷新后再整理。':'这次整理没有完成，原话已经保留，可以稍后再试。',error:true});
+  }
+  setVoiceStatus(x.r.ok?'整理完成，请核对摘要和待补充问题。':'原话已保留，整理暂未完成。',x.r.ok?'ok':'error');
+  voiceOrganizeBusy=false;if(button){button.disabled=false;button.textContent='重新整理'}await loadEvents();
+}
+async function saveVoiceSupplement(){
   if(saveBusy)return;
-  const text=$('rawText').value;
-  if(!text.trim()){$('saveStatus').textContent='请先写下发生的情况';return;}
-  const body=JSON.stringify({raw_text:text,source_kind:'elder',actor_name:'老人'});
-  let pending; if(!localMode)try{pending=JSON.parse(localStorage.getItem(PENDING_SAVE_KEY)||'null')}catch{}
-  if(!pending || pending.body!==body)pending={key:crypto.randomUUID(),body};
+  const input=$('voiceTextInput'),text=input.value.trim();
+  if(!text){setVoiceStatus('请先写下想补充的内容。','error');return}
+  const related=[...new Set(voiceConversationRecordIds)].slice(-10);
+  const body=JSON.stringify({raw_text:text,source_kind:'elder',actor_name:'老人',related_record_ids:related});
+  let pending;if(!localMode)try{pending=JSON.parse(localStorage.getItem(PENDING_SAVE_KEY)||'null')}catch{}
+  if(!pending||pending.body!==body)pending={key:crypto.randomUUID(),body};
   if(!localMode)localStorage.setItem(PENDING_SAVE_KEY,JSON.stringify(pending));
-  const btn=$('saveBtn'); saveBusy=true;btn.disabled=true;btn.textContent='保存中…';
+  const button=$('voiceTextSend');saveBusy=true;button.disabled=true;button.textContent='保存中';setVoiceStatus(related.length?'正在保存这条补充…':'正在保存这条原话…');
   if(demoMode)await health();
   const x=await api('/api/events',{method:'POST',headers:{'Idempotency-Key':pending.key},body});
-  saveBusy=false;btn.disabled=false;btn.textContent='保存这条记录';
-  if(x.r.ok){
-    current=x.j.event;if(!localMode)localStorage.removeItem(PENDING_SAVE_KEY);
-    $('saveStatus').textContent='✓ 原话已保存';$('saveStatus').className='status ok';$('rawText').value='';
-    await loadEvents();showView('recordsView');await showDetail(x.j.event.record_id);
-  } else {$('saveStatus').textContent='保存未确认，请重试。原输入保留，重试不会重复建记录。';$('saveStatus').className='status error';}
+  saveBusy=false;button.textContent='发送';
+  if(x.r.ok&&x.j.event){
+    if(!localMode)localStorage.removeItem(PENDING_SAVE_KEY);input.value='';registerVoiceEvent(x.j.event);
+    upsertVoiceTurn('event:'+x.j.event.record_id,{side:'user',text,note:related.length?'文字补充 · 已与本次语音记录关联':'文字原话 · 已加密保存在本机'});
+    upsertVoiceTurn('action:'+x.j.event.record_id,{side:'assistant',text:related.length?'补充内容已保存，不会覆盖前面的原话。':'这条原话已经保存。你可以继续补充，或者整理后核对。',note:'可继续记录，也可使用 AI 整理',action:'organize'});
+    setVoiceStatus(related.length?'补充原话已保存。':'原话已加密保存在本机。','ok');await loadEvents();
+  }else{
+    setVoiceStatus('保存未确认，原输入已保留。重试不会重复建记录。','error');
+  }
+  setVoiceComposerEnabled(true);
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function listHtml(items,empty='暂无'){const values=Array.isArray(items)?items.filter(v=>typeof v==='string'&&v.trim()):[];return values.length?`<ul class="plain-list">${values.map(v=>`<li>${escapeHtml(v)}</li>`).join('')}</ul>`:`<p class="muted">${empty}</p>`}
+function claimsHtml(claims){
+  const rows=Array.isArray(claims)?claims.filter(claim=>claim&&typeof claim==='object'&&(claim.quote||claim.text)):[];
+  if(!rows.length)return '<p class="muted">本次整理没有生成可展示的事实依据；请以原话为准。</p>';
+  return `<div class="claim-list">${rows.map(claim=>`<article class="claim-source"><b>${escapeHtml(SOURCE_KIND_LABELS[claim.source_kind]||'来源未标明')}</b><p>${escapeHtml(claim.quote||claim.text)}</p></article>`).join('')}</div>`;
+}
 function draftHtml(e,{organizeFailed=false}={}){
   const d=e.draft;if(!d||typeof d!=='object')return '';
   const time=d.time&&typeof d.time==='object'?d.time:{};
@@ -110,7 +219,7 @@ function draftHtml(e,{organizeFailed=false}={}){
   const role=REVIEW_ROLE_LABELS[d.review_role]||'需要人工核对';
   const level=ESCALATION_LABELS[d.escalation_level]||'需要人工核对';
   const extra=Object.entries(d).filter(([key,value])=>!['schema_version','event_kind','summary','time','claims','review_required','review_role','escalation_level','conflict','provenance_preserved','plan_change_allowed','follow_up_questions','forbidden_actions'].includes(key)&&typeof value==='string'&&value.trim()).map(([,value])=>value);
-  return `<section class="draft-card"><h3>${organizeFailed?'上次整理草稿（本次整理失败，未更新）':'整理结果（请核对）'}</h3><p class="draft-note">这是结构化草稿，不是诊断，也不会自动改变用药方案。</p><div class="fact-grid"><div><span>记录类型</span><b>${escapeHtml(EVENT_KIND_LABELS[d.event_kind]||'待人工判断')}</b></div><div><span>发生时间</span><b>${occurred}<small>${escapeHtml(certainty)}</small></b></div><div><span>需要谁核对</span><b>${escapeHtml(role)}</b></div><div><span>关注级别</span><b>${escapeHtml(level)}</b></div></div><div class="draft-source"><b>原话已完整保留</b><span>AI 只做分类和归档，没有改写原文。</span></div>${d.follow_up_questions?.length?`<h4>待核对问题</h4>${listHtml(d.follow_up_questions)}`:''}${d.conflict?.present?`<p class="status error">发现不同记录，需要把双方原话一起交给人工核对。</p>`:''}${extra.length?`<h4>补充说明</h4>${listHtml(extra)}`:''}</section>`;
+  return `<section class="draft-card"><h3>${organizeFailed?'上次整理草稿（本次整理失败，未更新）':'整理结果（请核对）'}</h3><p class="draft-note">这是结构化草稿，不是诊断，也不会自动改变用药方案。</p><h4>整理摘要</h4><p class="draft-summary">${escapeHtml(d.summary||'暂无整理摘要，请以原话为准。')}</p><div class="fact-grid"><div><span>记录类型</span><b>${escapeHtml(EVENT_KIND_LABELS[d.event_kind]||'待人工判断')}</b></div><div><span>发生时间</span><b>${occurred}<small>${escapeHtml(certainty)}</small></b></div><div><span>需要谁核对</span><b>${escapeHtml(role)}</b></div><div><span>关注级别</span><b>${escapeHtml(level)}</b></div></div><div class="draft-source"><b>原话已完整保留</b><span>AI 只做分类和归档，没有改写原文。</span></div><h4>事实依据原句与来源</h4>${claimsHtml(d.claims)}${d.follow_up_questions?.length?`<h4>待核对问题</h4>${listHtml(d.follow_up_questions)}<p class="follow-up-note">这些问题来自本次整理结果。补充内容会形成新的原话或修订，不是实时问诊。</p>`:''}${d.conflict?.present?`<p class="status error">发现不同记录，需要把双方原话一起交给人工核对。</p>`:''}${extra.length?`<h4>补充说明</h4>${listHtml(extra)}`:''}</section>`;
 }
 function relatedHistoryHtml(e,records){
   const ids=Array.isArray(e.related_record_ids)?e.related_record_ids:[];
@@ -119,18 +228,18 @@ function relatedHistoryHtml(e,records){
   const rows=records.length?records.map(item=>`<article class="history-source"><b>${escapeHtml(SOURCE_KIND_LABELS[item.source_kind]||'历史记录')} · ${dateText(item.recorded_at)}</b><p>${escapeHtml(item.raw_text)}</p></article>`).join(''):'<p class="muted">未能读取关联历史原话；不会用摘要替代原文。</p>';
   return `<section class="related-history"><h3>相关历史线索（需要核对）</h3><p class="draft-note">以下内容来自已关联的原始记录，只用于提出核对问题，不代表当前症状已经找到病因。</p>${rows}<p class="related-question">请由老人、家属或医生核对：这次记录是否与以上历史有关？如不确定，以医生判断为准。</p></section>`;
 }
-function detailHtml(e,{organizeFailed=false,relatedRecords=null}={}){const draft=draftHtml(e,{organizeFailed});return `<div class="section-head"><h2>记录详情</h2><button class="view-btn" onclick="closeDetail()">关闭</button></div><div class="event-date">${dateText(e.recorded_at)} · ${stateLabel(e.state)}</div><h3>原话</h3><div class="raw-box">${escapeHtml(e.raw_text)}</div>${safetyHtml(e.local_safety)}${draft}${relatedHistoryHtml(e,relatedRecords)}<div class="actions">${['inbox','needs_review'].includes(e.state)||(organizeFailed&&e.state==='draft')?'<button class="primary" id="organizeBtn">使用 AI 整理</button>':''}${e.state==='draft'&&!organizeFailed?'<button class="primary" id="reviewBtn">确认记录准确（非医学确认）</button><button class="outline" id="rejectBtn">退回重新整理</button>':''}<button class="outline" id="reviseBtn">保留历史并修订</button><button class="outline" id="historyBtn">查看历史</button>${localMode?'<button class="danger-button" id="deleteBtn">删除这条本机记录</button>':''}</div><div id="organizeStatus" role="status"></div>${e.supersedes_id?`<button class="outline" onclick="showDetail('${e.supersedes_id}')">查看修订前原文</button>`:''}<div id="subview"></div>`}
+function detailHtml(e,{organizeFailed=false,relatedRecords=null}={}){const draft=draftHtml(e,{organizeFailed});return `<div class="section-head"><h2 id="detailTitle" tabindex="-1">记录详情</h2><button class="view-btn" onclick="closeDetail()">关闭</button></div><div class="event-date">${dateText(e.recorded_at)} · ${stateLabel(e.state)} · 来源：${escapeHtml(SOURCE_KIND_LABELS[e.source_kind]||'来源未标明')}</div><h3>原话</h3><div class="raw-box">${escapeHtml(e.raw_text)}</div>${safetyHtml(e.local_safety)}${draft}${relatedHistoryHtml(e,relatedRecords)}<div class="actions">${['inbox','needs_review'].includes(e.state)||(organizeFailed&&e.state==='draft')?'<button class="primary" id="organizeBtn">使用 AI 整理</button>':''}${e.state==='draft'&&!organizeFailed?'<button class="primary" id="reviewBtn">确认记录准确（非医学确认）</button><button class="outline" id="rejectBtn">退回重新整理</button>':''}<button class="outline" id="reviseBtn">保留历史并修订</button><button class="outline" id="historyBtn">查看历史</button>${localMode?'<button class="danger-button" id="deleteBtn">删除这条本机记录</button>':''}</div><div id="organizeStatus" role="status" aria-live="polite"></div>${e.supersedes_id?`<button class="outline" onclick="showDetail('${e.supersedes_id}')">查看修订前原文</button>`:''}<div id="subview"></div>`}
 function renderDetail(e,options={}){
   current=e;safetyBanner(e.local_safety);
-  const d=$('detail');d.classList.remove('hidden');d.innerHTML=detailHtml(e,options);d.scrollIntoView({behavior:'smooth'});
+  const d=$('detail');d.classList.remove('hidden');d.innerHTML=detailHtml(e,options);if(options.focus!==false)reveal(d,'#detailTitle');
   if($('organizeBtn'))$('organizeBtn').onclick=()=>organize(e);
   if($('reviewBtn'))$('reviewBtn').onclick=()=>review(e,'confirm');
   if($('rejectBtn'))$('rejectBtn').onclick=()=>review(e,'reject');
   if($('deleteBtn'))$('deleteBtn').onclick=()=>deleteRecord(e);
   $('reviseBtn').onclick=()=>revise(e);$('historyBtn').onclick=()=>historyView(e);
 }
-async function loadRelatedHistory(e){const ids=Array.isArray(e.related_record_ids)?e.related_record_ids.slice(0,10):[];if(!ids.length)return;const records=[];for(const id of ids){const x=await api('/api/events/'+encodeURIComponent(id));if(x.r.ok&&x.j.event)records.push(x.j.event)}if(current?.record_id===e.record_id)renderDetail(e,{relatedRecords:records})}
-async function showDetail(id){const {r,j}=await api('/api/events/'+id);if(!r.ok){toast('详情读取失败，请重试');return;}renderDetail(j.event);loadRelatedHistory(j.event)}
+async function loadRelatedHistory(e){const ids=Array.isArray(e.related_record_ids)?e.related_record_ids.slice(0,10):[];if(!ids.length)return;const records=[];for(const id of ids){const x=await api('/api/events/'+encodeURIComponent(id));if(x.r.ok&&x.j.event)records.push(x.j.event)}if(current?.record_id===e.record_id)renderDetail(e,{relatedRecords:records,focus:false})}
+async function showDetail(id){const request=++detailRequestSerial,d=$('detail');if(d){d.classList.remove('hidden');d.innerHTML='<p class="muted detail-loading" role="status" aria-live="polite">正在读取这条记录…</p>'}const {r,j}=await api('/api/events/'+id);if(request!==detailRequestSerial)return;if(!r.ok){if(d){d.innerHTML='<div class="load-error" role="status"><b>详情暂时无法读取</b><span>请检查连接后再试，已有记录不会删除。</span><button id="retryDetailBtn" class="outline" type="button">重新读取详情</button></div>';$('retryDetailBtn').onclick=()=>showDetail(id);reveal(d,'.load-error')}toast('详情读取失败，请重试');return;}renderDetail(j.event);loadRelatedHistory(j.event)}
 function closeDetail(){clearRecordPanels()}
 async function organize(e){
   const b=$('organizeBtn');if(!b||b.disabled)return;b.disabled=true;b.textContent='整理中…';
@@ -161,12 +270,14 @@ async function deleteRecord(e){
   if(x.r.ok){closeDetail();await loadEvents();toast(`已删除本机记录${x.j.deleted.local_media_count?`和 ${x.j.deleted.local_media_count} 份关联原件`:''}；旧备份未改变`)}else toast('删除未完成，数据仍保留');
 }
 function revise(e){
-  $('subview').innerHTML=`<h3>修订记录</h3><textarea id="revText" rows="4">${escapeHtml(e.raw_text)}</textarea><input id="revReason" placeholder="修订原因（必填）" class="time-label"><button class="primary" id="submitRev">保存修订</button><div id="reviseStatus" role="status"></div>`;
+  $('subview').innerHTML=`<h3 id="reviseTitle" tabindex="-1">修订记录</h3><label class="field-label" for="revText">修订后的原话</label><textarea id="revText" rows="4" aria-describedby="reviseStatus">${escapeHtml(e.raw_text)}</textarea><label class="field-label" for="revReason">修订原因（必填）</label><input id="revReason" required aria-describedby="reviseStatus"><button class="primary" id="submitRev">保存修订</button><div id="reviseStatus" role="status" aria-live="polite"></div>`;
+  reveal($('subview'),'#reviseTitle');
   const button=$('submitRev'),status=$('reviseStatus');let busy=false;
   button.onclick=async()=>{
     if(busy)return;
     const raw=$('revText').value.trim(),reason=$('revReason').value.trim();
-    if(!raw||!reason){toast('请填写内容和修订原因');return}
+    if(!raw||!reason){$('revText').setAttribute?.('aria-invalid',String(!raw));$('revReason').setAttribute?.('aria-invalid',String(!reason));status.textContent='请填写修订后的原话和修订原因。';toast('请填写内容和修订原因');return}
+    $('revText').removeAttribute?.('aria-invalid');$('revReason').removeAttribute?.('aria-invalid');
     busy=true;button.disabled=true;button.textContent='保存中…';status.textContent='正在保存修订…';
     try{
       const x=await api('/api/events/'+e.record_id+'/revise',{method:'POST',body:JSON.stringify({raw_text:raw,source_kind:'elder',actor_name:'老人',expected_version:e.version,reason})});
@@ -175,40 +286,43 @@ function revise(e){
     }finally{busy=false;button.disabled=false;button.textContent='保存修订'}
   };
 }
-async function historyView(e){const x=await api('/api/events/'+e.record_id+'/history');if(!x.r.ok)return;$('subview').innerHTML='<h3>历史记录</h3><div class="history">'+(x.j.history||[]).map(h=>`<div class="history-item"><b>${h.action}</b> · v${h.version}<br><span class="muted">${new Date(h.at).toLocaleString('zh-CN')}</span><p>${escapeHtml(h.snapshot?.raw_text||'')}</p>${safetyHtml(h.snapshot?.local_safety)}</div>`).join('')+'</div>'}
+async function historyView(e){const box=$('subview');box.innerHTML='<p class="muted" role="status">正在读取历史版本…</p>';const x=await api('/api/events/'+e.record_id+'/history');if(!x.r.ok){box.innerHTML='<div class="load-error" role="status"><b>历史版本暂时无法读取</b><span>当前原话仍保留，请恢复连接后重试。</span><button id="retryHistoryBtn" class="outline" type="button">重新读取历史</button></div>';$('retryHistoryBtn').onclick=()=>historyView(e);return}const actionLabels={created:'首次保存',organized:'整理草稿',review_confirm:'核对准确',review_return:'退回整理',revised_from:'修订后的新记录',superseded_by_revision:'被新修订替代'};box.innerHTML='<h3 id="historyTitle" tabindex="-1">历史记录</h3><p class="muted">每次保存和修订都单独保留，不会覆盖原来的版本。</p><div class="history">'+(x.j.history||[]).map(h=>`<div class="history-item"><b>${escapeHtml(actionLabels[h.action]||'记录更新')}</b> · 第 ${escapeHtml(h.version)} 版 · 来源：${escapeHtml(SOURCE_KIND_LABELS[h.snapshot?.source_kind]||'来源未标明')}<br><span class="muted">${new Date(h.at).toLocaleString('zh-CN')}</span><p>${escapeHtml(h.snapshot?.raw_text||'')}</p>${safetyHtml(h.snapshot?.local_safety)}</div>`).join('')+'</div>';reveal(box,'#historyTitle')}
 async function handoff(){
   const b=$('handoffBtn');b.disabled=true;b.textContent='生成中…';
   const handoffBody=localMode?JSON.stringify({start_date:$('handoffStart')?.value||null,end_date:$('handoffEnd')?.value||null,record_ids:[...handoffSelection]}):'{}';
   const x=await api('/api/handoffs',{method:'POST',body:handoffBody});b.disabled=false;b.textContent='生成就诊交接材料';
-  if(!x.r.ok){toast('生成失败，请重试');return;}
+  if(!x.r.ok){const box=$('handoff');box.classList.remove('hidden');box.innerHTML='<div class="load-error" role="status"><b>交接材料暂时无法生成</b><span>原话和原件仍保留，请恢复连接后重试。</span></div>';toast('生成失败，请重试');return;}
   const h=x.j.handoff,box=$('handoff');box.classList.remove('hidden');
-  box.innerHTML=`<div class="section-head"><h2>就诊交接材料</h2><button class="view-btn" onclick="window.print()">打印</button></div><p class="muted">生成于 ${dateText(h.created_at)} · ${h.unresolved_count||0} 项待处理。核对只确认记录准确，不代表医学风险已消除。</p>`+
-    (h.items||[]).map(i=>`<div class="handoff-item"><b>${dateText(i.recorded_at)} · ${escapeHtml(i.source_kind)} · ${stateLabel(i.state)}</b><p>${escapeHtml(i.raw_text)}</p>${safetyHtml(i.local_safety)}${i.unresolved?'<span class="badge warn">仍有待处理事项</span>':''}</div>`).join('')+
-    '<h3>媒体原件与待处理状态</h3>'+(h.media_attachments||[]).map(m=>`<div class="handoff-item">${escapeHtml(m.kind)} · ${escapeHtml(m.recognition_status)} · ${escapeHtml(m.link_status)}${m.is_mock?' · 离线 Mock 演示模式':''}${m.unresolved?'<p>原件已保留，仍待识别或核对</p>':''}${safetyHtml(m.local_safety)}</div>`).join('');
-  box.scrollIntoView({behavior:'smooth'});
+  box.innerHTML=`<div class="section-head"><h2 id="handoffTitle" tabindex="-1">就诊交接材料</h2><button class="view-btn" onclick="window.print()">打印</button></div><p class="muted">生成于 ${dateText(h.created_at)} · ${h.unresolved_count||0} 项待处理。核对只确认记录准确，不代表医学风险已消除。</p>`+
+    (h.items||[]).map(i=>`<div class="handoff-item"><b>${dateText(i.recorded_at)} · ${escapeHtml(SOURCE_KIND_LABELS[i.source_kind]||'来源未标明')} · ${stateLabel(i.state)}</b><p>${escapeHtml(i.raw_text)}</p>${safetyHtml(i.local_safety)}${i.unresolved?'<span class="badge warn">仍有待处理事项</span>':''}</div>`).join('')+
+    '<h3>媒体原件与待处理状态</h3>'+(h.media_attachments||[]).map(m=>`<div class="handoff-item"><b>${escapeHtml(MEDIA_KIND_LABELS[m.kind]||'媒体原件')}</b><p>${escapeHtml(SAVE_STATUS_LABELS[m.save_status]||'原件保存状态待确认')} · ${escapeHtml(RECOGNITION_LABELS[m.recognition_status]||'识别状态待确认')} · ${escapeHtml(LINK_LABELS[m.link_status]||'关联状态待确认')}${m.is_mock?' · 离线 Mock 演示模式':''}</p>${m.unresolved?'<p>原件与待办仍保留，请完成识别或核对。</p>':''}${safetyHtml(m.local_safety)}</div>`).join('');
+  reveal(box,'#handoffTitle');
 }
 function updateTimer(){const active=mediaRecorder?.state==='recording'?Date.now()-startedAt:0;const sec=Math.floor((elapsedMs+active)/1000);$('voiceTimer').textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`}
-function setRecording(on){$('recordBtn').classList.toggle('recording',on);$('recordBtn').disabled=voicePermissionPending||voiceUploadPending;$('recordBtn').querySelector('span').textContent=voicePermissionPending?'等待麦克风权限…':voiceUploadPending?'请先保存上一段录音':on?'正在说…':mediaRecorder?.state==='paused'?'继续说':'开始说';$('finishVoiceBtn').disabled=voicePermissionPending||voiceUploadPending||!(on||mediaRecorder?.state==='paused');$('wave').classList.toggle('active',on)}
-function armSilenceTimer(){clearTimeout(silenceTimer);silenceTimer=setTimeout(()=>{if(mediaRecorder?.state==='recording'||$('recordBtn').classList.contains('recording')){pauseVoice('好像停了一会儿',true)}},12000)}
-function pauseVoice(reason='已暂停，可以继续说',showNotice=false){
+function setRecording(on){
+  const record=$('recordBtn'),label=voicePermissionPending?'等待麦克风权限…':voiceUploadPending?'请先保存上一段录音':on?'暂停录音':mediaRecorder?.state==='paused'?'继续说':'开始说';
+  record.classList.toggle('recording',on);record.disabled=voicePermissionPending||voiceUploadPending;record.querySelector('span').textContent=label;record.setAttribute?.('aria-label',label);
+  $('finishVoiceBtn').disabled=voicePermissionPending||voiceUploadPending||!(on||mediaRecorder?.state==='paused');$('wave').classList.toggle('active',on);$('recorderTray')?.classList.toggle('is-active',on||mediaRecorder?.state==='paused'||voiceUploadPending);
+}
+function pauseVoice(reason='录音已手动暂停，可以继续说',showNotice=true){
   if(mediaRecorder?.state==='recording'){elapsedMs+=Date.now()-startedAt;mediaRecorder.pause()}
-  clearInterval(timerId);timerId=null;clearTimeout(silenceTimer);updateTimer();setRecording(false);
+  clearInterval(timerId);timerId=null;updateTimer();setRecording(false);
   $('voiceHint').textContent=reason;
   if(showNotice)$('silenceNotice').classList.remove('hidden');
 }
 function resumeVoice(){
   if(mediaRecorder?.state==='paused'){
     mediaRecorder.resume();startedAt=Date.now();timerId=setInterval(updateTimer,1000);updateTimer();setRecording(true);
-    $('silenceNotice').classList.add('hidden');$('voiceHint').textContent='继续听，请慢慢说';armSilenceTimer();
+    $('silenceNotice').classList.add('hidden');$('voiceHint').textContent='继续听，请慢慢说';
   } else if(!mediaRecorder){
     startVoice();
   }
 }
 async function startVoice(){
   if(voicePermissionPending||voiceUploadPending)return;
-  if(mediaRecorder?.state==='recording'||$('recordBtn').classList.contains('recording')){pauseVoice('手动暂停');return}
+  if(mediaRecorder?.state==='recording'||$('recordBtn').classList.contains('recording')){pauseVoice();return}
   if(mediaRecorder?.state==='paused'){resumeVoice();return}
-  chunks=[];elapsedMs=0;clearInterval(timerId);timerId=null;updateTimer();voicePermissionPending=true;setRecording(false);$('voiceHint').textContent='请允许使用麦克风，授权后才开始录音';
+  chunks=[];elapsedMs=0;clearInterval(timerId);timerId=null;updateTimer();voicePermissionPending=true;setRecording(false);$('voiceHint').textContent='请允许使用麦克风，授权后才开始录音';setVoiceStatus('正在请求麦克风权限…');
   let stream;
   try{
     stream=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -216,20 +330,26 @@ async function startVoice(){
     const recordingChunks=chunks;
     mediaRecorder.ondataavailable=e=>{if(e.data.size)recordingChunks.push(e.data)};
     mediaRecorder.onstop=()=>stream.getTracks().forEach(t=>t.stop());
-    mediaRecorder.start();startedAt=Date.now();timerId=setInterval(updateTimer,1000);$('voiceHint').textContent='正在听，请慢慢说';armSilenceTimer();
+    mediaRecorder.start();startedAt=Date.now();timerId=setInterval(updateTimer,1000);$('voiceHint').textContent='正在听，请慢慢说';setVoiceStatus('录音中，说完后请点“说完了”保存原件。');
   }catch(e){
-    stream?.getTracks().forEach(t=>t.stop());mediaRecorder=null;clearInterval(timerId);timerId=null;clearTimeout(silenceTimer);$('voiceHint').textContent='麦克风未能开启，请检查权限，或使用文字补充、上传已有录音';
+    stream?.getTracks().forEach(t=>t.stop());mediaRecorder=null;clearInterval(timerId);timerId=null;$('voiceHint').textContent='麦克风未能开启，请检查权限，或到“看病资料”上传已有录音';setVoiceStatus('麦克风没有开启；文字仅作为已保存语音的补充。','error');
   }finally{voicePermissionPending=false;setRecording(mediaRecorder?.state==='recording');updateTimer()}
 }
 function stopVoice(reason){
   if(mediaRecorder?.state==='recording')elapsedMs+=Date.now()-startedAt;
-  clearInterval(timerId);timerId=null;clearTimeout(silenceTimer);
+  clearInterval(timerId);timerId=null;
   if(mediaRecorder?.state==='recording'||mediaRecorder?.state==='paused')mediaRecorder.stop();
   mediaRecorder=null;updateTimer();setRecording(false);$('voiceHint').textContent=reason||'这一段已暂存';$('silenceNotice').classList.add('hidden')
 }
-$('recordBtn').onclick=startVoice;$('resumeBtn').onclick=resumeVoice;$('pauseBtn').onclick=()=>pauseVoice('已暂停，可以稍后继续说');$('saveBtn').onclick=save;$('refreshBtn').onclick=async()=>{await health();await loadEvents();toast('记录已刷新')};$('handoffBtn').onclick=handoff;
+$('recordBtn').onclick=startVoice;$('resumeBtn').onclick=resumeVoice;$('pauseBtn').onclick=()=>{if(mediaRecorder?.state==='recording')pauseVoice();else $('voiceHint').textContent='录音保持暂停，原片段仍在本页'};$('refreshBtn').onclick=async()=>{await health();if(await loadEvents())toast('记录已刷新')};$('handoffBtn').onclick=handoff;
 for(const id of ['filterKeyword','filterKind','filterState','filterStart','filterEnd'])$(id)?.addEventListener(id==='filterKeyword'?'input':'change',renderList);
 if($('clearFilters'))$('clearFilters').onclick=()=>{for(const id of ['filterKeyword','filterKind','filterState','filterStart','filterEnd'])$(id).value='';renderList()};
+if($('voiceTextSend'))$('voiceTextSend').onclick=saveVoiceSupplement;
+if($('voiceTextInput')){
+  $('voiceTextInput').addEventListener('input',()=>{setVoiceComposerEnabled(true);$('voiceTextInput').style.height='auto';$('voiceTextInput').style.height=Math.min($('voiceTextInput').scrollHeight,132)+'px'});
+  if(!localMode)try {const pending=JSON.parse(localStorage.getItem(PENDING_SAVE_KEY)||'null');if(pending)$('voiceTextInput').value=JSON.parse(pending.body).raw_text||'';}catch{}
+}
+setVoiceComposerEnabled(true);
 async function refreshStorageStatus(){if(!localMode||!$('storageStatus'))return;try{const s=await HealthLocal.storageStatus(),used=(s.usage/1024/1024).toFixed(1),quota=s.quota?`${(s.quota/1024/1024).toFixed(0)} MB`:'未知';$('storageStatus').textContent=`已使用约 ${used} MB / 可用额度 ${quota}。${s.persisted?'浏览器已批准持久存储。':'浏览器尚未批准持久存储，请定期下载备份。'}`}catch{$('storageStatus').textContent='无法读取本机存储额度，请定期下载加密备份。'}}
 async function restoreEncryptedBackup(file,status){const passphrase=prompt('输入这份备份的恢复口令。口令只在当前设备验证，不会上传。');if(!passphrase){status.textContent='已取消恢复，当前数据未改变。';return false}try{const preview=await HealthLocal.previewBackup(file,passphrase);if(!confirm(`备份中有 ${preview.eventCount} 条记录、${preview.mediaCount} 份原件，导出时间 ${preview.exportedAt||'未知'}。恢复将替换当前设备的数据，是否继续？`)){status.textContent='已取消，当前数据未改变。';return false}await HealthLocal.restoreBackup(preview,passphrase);status.textContent='恢复完成，正在重新读取记录。';await loadEvents();return true}catch{status.textContent='备份无法验证或已损坏，当前数据未被覆盖。';return false}}
 function renderCloudBackups(backups){const box=$('cloudBackups');if(!box)return;box.replaceChildren();if(!backups.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='私有云里还没有加密备份。';box.append(empty);return}for(const item of backups){const row=document.createElement('div');row.className='cloud-backup-row';const copy=document.createElement('div'),title=document.createElement('b'),meta=document.createElement('span'),button=document.createElement('button');title.textContent='加密备份';const when=item.last_modified?new Date(item.last_modified).toLocaleString():'时间未知',size=Number.isFinite(item.size)?`${(item.size/1024/1024).toFixed(2)} MB`:'大小未知';meta.textContent=`${when} · ${size}`;copy.append(title,meta);button.className='outline';button.textContent='验证并恢复';button.onclick=async()=>{const status=$('cloudBackupStatus');button.disabled=true;status.textContent='正在取得这份密文备份…';try{const file=await HealthLocal.downloadCloudBackup(item.object_key);await restoreEncryptedBackup(file,status)}catch{status.textContent='云备份下载失败，当前数据未改变。'}finally{button.disabled=false}};row.append(copy,button);box.append(row)}}
@@ -241,6 +361,6 @@ if($('uploadCloudBackupBtn'))$('uploadCloudBackupBtn').onclick=async()=>{const b
 if($('refreshCloudBackupsBtn'))$('refreshCloudBackupsBtn').onclick=refreshCloudBackups;
 if($('lockVaultBtn'))$('lockVaultBtn').onclick=()=>{HealthLocal.lock();location.reload()};
 if($('saveFeedbackBtn'))$('saveFeedbackBtn').onclick=async()=>{const text=$('feedbackText').value,s=$('feedbackStatus');try{await HealthLocal.saveFeedback(text,document.querySelector('.view.active')?.id);$('feedbackText').value='';s.textContent='内测问题已加密保存在本机，未附带健康原文。'}catch{s.textContent='请先写下问题描述（不要粘贴密钥）。'}};
-if(!localMode)try {const pending=JSON.parse(localStorage.getItem(PENDING_SAVE_KEY)||'null');if(pending)$('rawText').value=JSON.parse(pending.body).raw_text;}catch{}
+const today=$('todayLabel');if(today)today.textContent=new Intl.DateTimeFormat('zh-CN',{month:'long',day:'numeric',weekday:'long'}).format(new Date());
 health().then(loadEvents);refreshCloudBackupConfig();
-if(typeof navigator!=='undefined'&&'serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+if(typeof navigator!=='undefined'&&'serviceWorker'in navigator&&['https:','http:'].includes(location.protocol))navigator.serviceWorker.register('/service-worker.js?build=full-20260917',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});

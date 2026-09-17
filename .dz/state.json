@@ -7,9 +7,9 @@
   },
   "run": {
     "status": "active",
-    "product_verdict": "implemented_unverified",
+    "product_verdict": "partially_verified",
     "stage": "plan_accepted",
-    "next_action": "把本地优先内测版改为单仓库双服务：前端 5173、后端 18768，完成跨端口安全联调和完整回归。",
+    "next_action": "把完整 elder-ui 前端接入当前本地优先双服务并在 5173 实测",
     "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-16T15:52:23+00:00"
+    "updated_at": "2026-09-17T05:59:45+00:00"
   },
   "decisions": {
     "intent": {
@@ -55,14 +55,14 @@
     }
   },
   "target": {
-    "id": null,
-    "contract_sha256": null,
-    "revision": null,
-    "environment": null,
-    "source": null,
-    "artifact_path": null,
-    "artifact_sha256": null,
-    "set_at": null
+    "id": "d89e35427656ac3c57bdd10bb74e96dbce65b258316a62a372fe2b0d1ea47fd6",
+    "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+    "revision": "working-tree@full-frontend-20260917",
+    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; in-app Chromium",
+    "source": "current working tree and local browser/runtime checks",
+    "artifact_path": "docs/evidence/local-frontend-open-2026-09-17.md",
+    "artifact_sha256": "3fb05fcb109f32712fdf8372af01686f4d1775fe69db6d07e19b51e81e9a8b03",
+    "set_at": "2026-09-17T05:58:36+00:00"
   },
   "requirements": {
     "spec_sha256": "67dd43ec10fff7502bf7a131c5115b970080a984cc87d081f7c8ea2d74bfbe8e",
@@ -463,9 +463,9 @@
         "R1-R13 均有当前提交和双服务实际部署上的可复现证据；无高严重度未解决问题；所有者能从前端地址在手机完成录入、核对、备份和恢复；frontend 与 backend 一起进入 GitHub main。"
       ],
       "evidence_ids": [],
-      "note": "等待云端部署、真实 AI/手机/跨浏览器验收后再更新 README、提交并覆盖 GitHub main。\nrevise from W6: 发布候选必须同时包含并验证独立前端服务和独立后端服务。; fresh checks required\nkeep from W6@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "note": "GitHub main 已更新到 4ecbd92，确认同时包含 frontend/ 与 backend/；仍待新建双云服务、配置私有 TOS、真实线上浏览器和手机验收。",
       "blocker": null,
-      "updated_at": "2026-09-16T15:52:23+00:00",
+      "updated_at": "2026-09-16T16:00:14+00:00",
       "carried_from": "W6@bb2619691d27"
     },
     {
@@ -478,10 +478,13 @@
       "acceptance": [
         "已确认的设计完整定义单仓库双服务、前端唯一用户入口、独立 API 地址、精确 CORS/会话、本地加密数据、TOS 密文备份、安全边界和验收方式。覆盖 R1-R13。"
       ],
-      "evidence_ids": [],
-      "note": "前后端分离规格与方案已确认并形成当前设计证据。\nkeep from D1@bb2619691d27: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "evidence_ids": [
+        "E-D1-COMMIT-20260916",
+        "E-D1-INAPP-20260917"
+      ],
+      "note": "前后端分离 v2 设计保持有效；当前目标切换为 Codex 内置浏览器现场复核。",
       "blocker": null,
-      "updated_at": "2026-09-16T15:52:23+00:00",
+      "updated_at": "2026-09-17T05:20:10+00:00",
       "carried_from": "D1@bb2619691d27"
     },
     {
@@ -490,14 +493,18 @@
       "required": true,
       "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
       "phase": "build",
-      "status": "implemented_unverified",
+      "status": "verified",
       "acceptance": [
         "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。"
       ],
-      "evidence_ids": [],
-      "note": "真实浏览器和自动化回归证明前端入口、独立 API、跨端口登录和 README 修复成立。\nkeep from W1A: 仅将已经确认的前后端分离规格和方案登记为去除文末空白的版本；产品承诺、代码实现和验收口径完全不变，保留现有实现但重新绑定当前合同并要求新证据。; fresh checks required",
+      "evidence_ids": [
+        "E-W1A-COMMIT-20260916",
+        "E-LOCAL-FRONTEND-ENTRY-20260917",
+        "E-W1A-FULL-20260917"
+      ],
+      "note": "完整前端已合入并在 5173 实测；36 项前端、765 项 Python、合同检查、刷新持久化和 5173→18768 登录闭环通过。",
       "blocker": null,
-      "updated_at": "2026-09-16T15:52:23+00:00",
+      "updated_at": "2026-09-17T05:59:45+00:00",
       "carried_from": "W1A"
     }
   ],
@@ -654,6 +661,91 @@
       "result": "passed",
       "resolves": [],
       "recorded_at": "2026-09-16T15:43:17+00:00"
+    },
+    {
+      "id": "E-W1A-COMMIT-20260916",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "target_id": "ac0a94cb3f3519fa2ea20810bbb3896f08e90e3b0f8c0ffa7a180f0edae6c4fb",
+      "acceptance": "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。",
+      "kind": "browser_regression",
+      "claim": "提交 4ecbd92 在真实浏览器中从 5173 打开完整前端，跨端口登录和会话成功，18768 根路径只返回 API 身份，README 只引导前端入口。",
+      "source": "ego-browser TaskSpace 3; automated test suites recorded in artifact",
+      "artifact_path": "docs/evidence/local-first-implementation-2026-09-16.md",
+      "artifact_sha256": "ac2fcb9a97b2f1c22032ae74b7f54fc9df520f6fec1079da501b981c16271e73",
+      "revision": "4ecbd92",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:53:31+00:00"
+    },
+    {
+      "id": "E-D1-COMMIT-20260916",
+      "work_item_id": "D1@bb2619691d27@f0d4b7ca8e96",
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "target_id": "ac0a94cb3f3519fa2ea20810bbb3896f08e90e3b0f8c0ffa7a180f0edae6c4fb",
+      "acceptance": "已确认的设计完整定义单仓库双服务、前端唯一用户入口、独立 API 地址、精确 CORS/会话、本地加密数据、TOS 密文备份、安全边界和验收方式。覆盖 R1-R13。",
+      "kind": "accepted_design",
+      "claim": "当前确认的 v2 规格和方案完整定义单仓库双服务、前端入口、安全和数据边界及 R1-R13 验收。",
+      "source": "project owner accepted spec-split-web-api-v2.md and plan-split-web-api-v2.md",
+      "artifact_path": "docs/sdlc/plan-split-web-api-v2.md",
+      "artifact_sha256": "4f44c3b67377c614e9eff1c507c1749fbeb52a67454178665b4e920339c7175e",
+      "revision": "4ecbd92",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T15:53:31+00:00"
+    },
+    {
+      "id": "E-LOCAL-FRONTEND-ENTRY-20260917",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "target_id": "1f863c70f82f7f43b01e3ac723688a7c62243a75822624cc7647bb2c87832f02",
+      "acceptance": "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。",
+      "kind": "browser_regression",
+      "claim": "现场从未运行的 file:// 错误入口恢复为双服务运行；浏览器当前选中 http://127.0.0.1:5173/，显示完整病历不归零前端；后端 18768 只返回 API 身份。",
+      "source": "lsof、curl 与 Codex in-app browser 当前页签/DOM 复核",
+      "artifact_path": "docs/evidence/local-frontend-open-2026-09-17.md",
+      "artifact_sha256": "8716c5f83d47dd3022f1b8fd67bfab7ec5e774f413d4daa3fbe27dcbee146fea",
+      "revision": "4ecbd92",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; Codex in-app browser",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T16:07:55+00:00"
+    },
+    {
+      "id": "E-D1-INAPP-20260917",
+      "work_item_id": "D1@bb2619691d27@f0d4b7ca8e96",
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "target_id": "1f863c70f82f7f43b01e3ac723688a7c62243a75822624cc7647bb2c87832f02",
+      "acceptance": "已确认的设计完整定义单仓库双服务、前端唯一用户入口、独立 API 地址、精确 CORS/会话、本地加密数据、TOS 密文备份、安全边界和验收方式。覆盖 R1-R13。",
+      "kind": "accepted_design",
+      "claim": "当前确认的 v2 规格与方案仍定义前端唯一用户入口和独立后端 API，今天的运行复核没有改变产品约定。",
+      "source": "project owner accepted spec-split-web-api-v2.md and plan-split-web-api-v2.md",
+      "artifact_path": "docs/sdlc/plan-split-web-api-v2.md",
+      "artifact_sha256": "4f44c3b67377c614e9eff1c507c1749fbeb52a67454178665b4e920339c7175e",
+      "revision": "4ecbd92",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; Codex in-app browser",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-16T16:07:55+00:00"
+    },
+    {
+      "id": "E-W1A-FULL-20260917",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "target_id": "d89e35427656ac3c57bdd10bb74e96dbce65b258316a62a372fe2b0d1ea47fd6",
+      "acceptance": "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。",
+      "kind": "browser_and_regression",
+      "claim": "完整 elder-ui 已合入 5173；加密记录刷新后仍存在；5173 到 18768 登录与健康接口成功；36 项前端、765 项 Python 与 TypeScript 合同通过。",
+      "source": "in-app Chromium, Node test runner, pytest, local HTTP checks",
+      "artifact_path": "docs/evidence/local-frontend-open-2026-09-17.md",
+      "artifact_sha256": "3fb05fcb109f32712fdf8372af01686f4d1775fe69db6d07e19b51e81e9a8b03",
+      "revision": "working-tree@full-frontend-20260917",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; in-app Chromium",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-17T05:59:25+00:00"
     }
   ],
   "risks": [
@@ -800,6 +892,54 @@
       "decision_by": "project owner",
       "decision_reference": "2026-09-16 用户确认前端与后端保持两个独立端口/服务，旧的单应用云资源范围不再适用。",
       "decided_at": "2026-09-16T15:23:02+00:00"
+    },
+    {
+      "id": "RISK-GITHUB-MAIN-SPLIT-20260916",
+      "title": "用完整前后端内测版覆盖 GitHub 主干",
+      "level": "medium",
+      "action_kind": "public_release",
+      "consequence": "GitHub main 将从当前 README 单行更新版本切换到完整前后端内测版提交；若目标判断错误，使用 main 的人会立即看到新代码历史。",
+      "safer_option": "只推送当前功能分支并通过 PR 合并，不直接改变 main。",
+      "recovery": "旧主干提交 da1e8bc15a89dbd2457c90a029761172b834fe2a 会继续保留，可用带租约的反向更新恢复；本次不删除分支或标签。",
+      "scope": "使用 --force-with-lease=main:da1e8bc15a89dbd2457c90a029761172b834fe2a 将本地提交 4ecbd92e83730c58612e3411bc0706fd5edccc23 推送到 origin/main；内容包含同仓库 frontend/ 与 backend/ 双服务内测版；不修改其他分支、标签或现有 DeepWe 云资源。",
+      "lease_contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "lease_target_id": "ac0a94cb3f3519fa2ea20810bbb3896f08e90e3b0f8c0ffa7a180f0edae6c4fb",
+      "lease_revision": "4ecbd92",
+      "lease_environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "amount_limit": null,
+      "expires_at": "2026-09-23T23:59:59+08:00",
+      "authorization_pending": false,
+      "decision": "accepted",
+      "action_status": "completed",
+      "action_reference": "GitHub push result: da1e8bc...4ecbd92 HEAD -> main (forced update); origin/main resolves to 4ecbd92e83730c58612e3411bc0706fd5edccc23; tree contains both frontend/ and backend/.",
+      "action_at": "2026-09-16T15:55:13+00:00",
+      "decision_by": "project owner",
+      "decision_reference": "用户明确要求‘直接覆盖到主干’，随后确认单仓库包含前后端、运行时双服务的最终结构并要求继续完成。",
+      "decided_at": "2026-09-16T15:54:21+00:00"
+    },
+    {
+      "id": "RISK-CLOUD-SPLIT-BETA-20260916",
+      "title": "创建前端与后端两套按量云服务并完成内测验收",
+      "level": "medium",
+      "action_kind": "spend",
+      "consequence": "会新增两个公开 HTTPS 应用、网关路由、私有 TOS 和 IAM 权限，并把现有 AI 密钥写入后端秘密配置；会产生按实际调用、执行时长、出流量和存储计算的费用，配置错误可能造成短时不可用或多计费。",
+      "safer_option": "保持 GitHub 和本地双服务版本，只在电脑上运行，不创建云资源、不产生云端费用，但电脑关机后无法从手机访问。",
+      "recovery": "停止新应用流量并删除本次新建的 bingli-beta-web、bingli-beta-api、对应新增路由、私有桶和专用 IAM 角色/策略；撤销后端秘密配置。现有 DeepWe 应用与路由不在操作范围。",
+      "scope": "在 cn-beijing 使用现有网关 DeepWe 新增且仅新增 veFaaS 应用 bingli-beta-api 与 bingli-beta-web（各 0.5 vCPU、1 GiB、最小实例 0、最大实例 2），新增隔离的 APIG 服务/路由和公开 HTTPS 地址；向 bingli-beta-api 写入本项目现有 DeepSeek、AIHubMix 密钥及新生成的网站所有者密码和会话密钥；创建私有 TOS 桶 bingli-beta-backup-2130955937、最小权限策略 BingliBetaBackupPolicy 与角色 BingliBetaBackupRole并绑定 API 应用；部署提交 4ecbd92 的前端和后端，浏览器只分享前端地址；用合成资料最多各执行 1 次文字、音频、图片 AI 验收和 1 次小型密文备份上传/下载/删除；不修改或重部署 deepwe-frontend、deepwe-backend 及其现有路由，不购买套餐或预留实例。",
+      "lease_contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "lease_target_id": "ac0a94cb3f3519fa2ea20810bbb3896f08e90e3b0f8c0ffa7a180f0edae6c4fb",
+      "lease_revision": "4ecbd92",
+      "lease_environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; ego-browser Chromium",
+      "amount_limit": "只用按量计费；两应用各 0.5 vCPU/1 GiB、最小实例 0、最大实例 2；不购买套餐、不设预留实例；AI 验收各最多 1 次且不自动重试；TOS 只存内测密文备份。",
+      "expires_at": "2026-09-23T23:59:59+08:00",
+      "authorization_pending": false,
+      "decision": "declined",
+      "action_status": "declined",
+      "action_reference": null,
+      "action_at": null,
+      "decision_by": "project owner",
+      "decision_reference": "2026-09-17 用户没有确认云端部署，转而要求先正确调用并展示文件夹内已经完成的前端。",
+      "decided_at": "2026-09-16T16:03:03+00:00"
     }
   ],
   "issues": [
@@ -918,9 +1058,45 @@
       "work_item_id": "W1A@f0d4b7ca8e96",
       "evidence_ids": [],
       "resolution": "前端固定为 5173 用户入口，后端固定为 18768 API；前端通过运行时配置调用 API，后端 local_first 根地址只返回 API 身份，README 和启动输出只引导打开前端。",
-      "prevention": "保留 frontend_config、local_first_http 回归；每次发布必须从前端地址进入并检查地址栏与后端根响应。",
+      "prevention": "保留 frontend_config、local_first_http 回归；每次发布从前端地址进入并检查地址栏、后端根响应和 GitHub main 同时包含 frontend/、backend/。",
       "created_at": "2026-09-16T15:42:08+00:00",
-      "updated_at": "2026-09-16T15:52:23+00:00"
+      "updated_at": "2026-09-16T16:07:55+00:00"
+    },
+    {
+      "id": "LOCAL-FRONTEND-ENTRY-20260917",
+      "title": "已完成前端被错误地以本地文件方式展示",
+      "kind": "implementation_gap",
+      "status": "implemented_unverified",
+      "source": "2026-09-17 项目所有者反馈当前看到的仍像后端；现场复核地址为 file://.../frontend/index.html，且 5173/18768 均未运行。",
+      "expected": "启动仓库现有前端和后端后，只把 http://127.0.0.1:5173/ 作为产品页面交给项目所有者查看。",
+      "actual": "交付时打开了 frontend/index.html 的 file:// 地址，没有保持前端 5173 和后端 18768 服务运行。",
+      "impact": "项目所有者无法看到正常运行并连接 API 的既有前端，误以为前端被丢失或替换成后端。",
+      "route": "work_item",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "evidence_ids": [],
+      "resolution": "已启动仓库现有双服务，并在当前浏览器新开且选中 http://127.0.0.1:5173/；保留错误 file:// 页签作为问题对照，不再把它当产品入口。",
+      "prevention": "本地展示前必须检查 5173 与 18768 均在监听、当前选中页签 URL 为 5173、标题为病历不归零·内测版；禁止交付 file:// 或 18768 地址。",
+      "created_at": "2026-09-16T16:07:06+00:00",
+      "updated_at": "2026-09-17T05:20:10+00:00"
+    },
+    {
+      "id": "FULL-FRONTEND-NOT-MERGED-20260917",
+      "title": "完整 elder-ui 前端未合入当前 5173 入口",
+      "kind": "implementation_gap",
+      "status": "verified",
+      "source": "5173 与 elder-ui 文件、浏览器 DOM、接口返回现场对照",
+      "expected": "5173 显示此前完成的完整前端并调用 18768 当前本地优先接口",
+      "actual": "5173 显示 backend-handoff 简化前端；完整 elder-ui 在另一工作目录且仍调用已禁用的旧接口",
+      "impact": "使用者看不到此前完整界面，完整前端也无法实际读写当前后端能力",
+      "route": "work_item",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "evidence_ids": [
+        "E-W1A-FULL-20260917"
+      ],
+      "resolution": "完整 elder-ui 视觉与交互已合入当前仓库并接到本地加密接口；5173 真实浏览器完成保存、刷新解锁和跨端口登录闭环。",
+      "prevention": "发布前固定检查 5173 的完整品牌首页、三项底部导航、静态资源版本和浏览器持久化；禁止只凭后端健康页或旧 Service Worker 缓存判定前端完成。",
+      "created_at": "2026-09-17T05:20:11+00:00",
+      "updated_at": "2026-09-17T05:59:45+00:00"
     }
   ]
 }

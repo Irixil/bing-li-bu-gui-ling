@@ -89,7 +89,7 @@ test('finish captures this recorder and final bytes even if the global chunks ar
   assert.equal(await captured.text(), 'before-pause/after-resume/final-stop-data');
   assert.equal(await h.run('pendingRecordingBlob').text(), await captured.text());
   assert.equal(h.element('retryVoiceUploadBtn').classList.contains('hidden'), false);
-  assert.equal(h.views.at(-1), 'archiveView');
+  assert.equal(h.views.length, 0, '完整前端应留在语音对话里展示保存和识别状态');
 });
 
 test('failed multipart upload keeps original Blob and retry identity; success automatically recognizes', async () => {

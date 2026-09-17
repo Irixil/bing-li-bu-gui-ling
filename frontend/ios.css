@@ -1,0 +1,57 @@
+/* Mobile shell and safe-area rules. Keep content naturally scrollable. */
+.app-shell {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 24px);
+}
+
+.bottom-nav {
+  height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.toast { bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 18px); }
+
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea { font-size: 18px; }
+
+  .app-shell { min-height: -webkit-fill-available; }
+}
+
+@media (min-width: 640px) {
+  body { padding: 24px 0; }
+
+  .app-shell {
+    max-width: 430px;
+    min-height: min(884px, calc(100dvh - 48px));
+    border: 1px solid rgba(210, 214, 230, .9);
+    border-radius: 28px;
+    box-shadow: 0 22px 70px rgba(35, 40, 77, .2);
+    overflow: clip;
+  }
+
+  .topbar { border-radius: 27px 27px 0 0; }
+
+  .voice-conversation-view.active {
+    height: min(884px, calc(100dvh - 48px));
+    min-height: 0;
+  }
+
+  .bottom-nav {
+    right: auto;
+    left: 50%;
+    width: 428px;
+    border-right: 1px solid rgba(210, 214, 230, .9);
+    border-left: 1px solid rgba(210, 214, 230, .9);
+    transform: translateX(-50%);
+  }
+
+  .toast { max-width: 390px; }
+}
+
+@media (max-width: 639px) {
+  .device-pill { display: none; }
+  .topbar { min-height: 60px; padding-block: 8px; }
+  .brand-mark { width: 40px; height: 40px; border-radius: 12px; }
+  .brand span { display: none; }
+}
