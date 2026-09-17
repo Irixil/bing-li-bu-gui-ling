@@ -1,4 +1,4 @@
-const CACHE = 'bingli-beta-shell-v3';
+const CACHE = 'bingli-beta-shell-v4';
 const SHELL = ['/', '/styles.css', '/ios.css', '/splash.css', '/config.js', '/local-store-core.js', '/safety.js', '/local-store.js', '/app.js', '/media.js', '/splash.js', '/assets/brand-mascot.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', event => {

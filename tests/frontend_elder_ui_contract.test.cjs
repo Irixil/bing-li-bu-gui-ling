@@ -10,6 +10,7 @@ const app = read('app.js');
 const styles = read('styles.css');
 const ios = read('ios.css');
 const splash = read('splash.js');
+const localStore = read('local-store.js');
 
 test('complete elder frontend remains the only user-facing shell', () => {
   const nav = markup.match(/<nav class="bottom-nav"[\s\S]*?<\/nav>/)?.[0] || '';
@@ -63,4 +64,14 @@ test('splash is dismissible, session-scoped and reduced-motion aware', () => {
   assert.match(splash, /Escape/);
   assert.match(splash, /prefers-reduced-motion/);
   assert.match(splash, /setTimeout\(closeSplash/);
+});
+
+test('elder flow uses family device binding without a second password prompt', () => {
+  const shipped = `${markup}\n${localStore}`;
+  assert.doesNotMatch(shipped, /cloudPassword|cloudLoginForm|网站访问密码|\/api\/app\/login/);
+  assert.match(localStore, /\/api\/app\/device\/activate/);
+  assert.match(localStore, /family_device_binding_required/);
+  assert.match(localStore, /history\.replaceState/);
+  assert.match(markup, /老人不需要输入网站密码/);
+  assert.match(markup, /本机记录始终可以继续使用/);
 });

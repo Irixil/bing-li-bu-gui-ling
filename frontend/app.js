@@ -33,7 +33,7 @@ function showView(id){
   });
   window.scrollTo({top:0,behavior:reducedMotion()?'auto':'smooth'});
   const activeView=views.find(v=>v.id===id);activeView?.querySelector?.('h1')?.focus?.({preventScroll:true});
-  if(id==='recordsView')loadEvents();if(id==='homeView')renderHome();if(id==='settingsView')refreshStorageStatus();return true
+  if(id==='recordsView')loadEvents();if(id==='homeView')renderHome();if(id==='settingsView'){refreshStorageStatus();refreshOnlineAccessStatus()}return true
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
   // Media entry buttons are disabled after capability discovery when the
@@ -252,6 +252,7 @@ async function organize(e){
     loadRelatedHistory(saved);
   }
   if(x.r.status===412){$('organizeStatus').textContent='已取消发送，本机原话仍安全保存。';toast('未发送给 AI');}
+  else if(x.r.status===401&&x.j.error==='family_device_binding_required'){$('organizeStatus').textContent='在线 AI 尚未由家属开通；本机原话仍安全保存。请让家属用绑定链接在这台设备打开一次。';toast('本机记录已保留，请家属开通在线功能');b.disabled=false;b.textContent='使用 AI 整理';}
   else if(x.r.status===422){$('organizeStatus').textContent='原话已保存，AI 整理失败：'+(x.j.failure_reason||'请稍后重试');toast('原话已保存，整理暂时失败');}
   else if(x.r.ok&&x.j.event)toast('整理完成，请核对');
   else {toast(x.r.status===409?'记录已有新版本，请刷新后重试':'整理失败，原话仍在');b.disabled=false;b.textContent='整理记录';}
@@ -351,6 +352,8 @@ if($('voiceTextInput')){
 }
 setVoiceComposerEnabled(true);
 async function refreshStorageStatus(){if(!localMode||!$('storageStatus'))return;try{const s=await HealthLocal.storageStatus(),used=(s.usage/1024/1024).toFixed(1),quota=s.quota?`${(s.quota/1024/1024).toFixed(0)} MB`:'未知';$('storageStatus').textContent=`已使用约 ${used} MB / 可用额度 ${quota}。${s.persisted?'浏览器已批准持久存储。':'浏览器尚未批准持久存储，请定期下载备份。'}`}catch{$('storageStatus').textContent='无法读取本机存储额度，请定期下载加密备份。'}}
+async function refreshOnlineAccessStatus(){if(!localMode||!$('onlineAccessStatus'))return;const status=$('onlineAccessStatus');try{const state=await HealthLocal.onlineStatus();status.textContent=state.authenticated?'在线功能已由家属开通，这台设备可以直接使用 AI 和云备份。':state.status==='network_unavailable'?'暂时无法连接在线服务；本机记录仍可继续使用。':'在线功能尚未由家属开通；本机记录仍可继续使用。请让家属用绑定链接在这台设备打开一次。'}catch{status.textContent='暂时无法检查在线功能；本机记录仍可继续使用。'}}
+globalThis.addEventListener?.('bingli:online-status',event=>{const status=$('onlineAccessStatus');if(!status)return;status.textContent=event.detail?.authenticated?'在线功能已由家属开通，这台设备可以直接使用 AI 和云备份。':'在线功能尚未由家属开通；本机记录仍可继续使用。请让家属用绑定链接在这台设备打开一次。'});
 async function restoreEncryptedBackup(file,status){const passphrase=prompt('输入这份备份的恢复口令。口令只在当前设备验证，不会上传。');if(!passphrase){status.textContent='已取消恢复，当前数据未改变。';return false}try{const preview=await HealthLocal.previewBackup(file,passphrase);if(!confirm(`备份中有 ${preview.eventCount} 条记录、${preview.mediaCount} 份原件，导出时间 ${preview.exportedAt||'未知'}。恢复将替换当前设备的数据，是否继续？`)){status.textContent='已取消，当前数据未改变。';return false}await HealthLocal.restoreBackup(preview,passphrase);status.textContent='恢复完成，正在重新读取记录。';await loadEvents();return true}catch{status.textContent='备份无法验证或已损坏，当前数据未被覆盖。';return false}}
 function renderCloudBackups(backups){const box=$('cloudBackups');if(!box)return;box.replaceChildren();if(!backups.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='私有云里还没有加密备份。';box.append(empty);return}for(const item of backups){const row=document.createElement('div');row.className='cloud-backup-row';const copy=document.createElement('div'),title=document.createElement('b'),meta=document.createElement('span'),button=document.createElement('button');title.textContent='加密备份';const when=item.last_modified?new Date(item.last_modified).toLocaleString():'时间未知',size=Number.isFinite(item.size)?`${(item.size/1024/1024).toFixed(2)} MB`:'大小未知';meta.textContent=`${when} · ${size}`;copy.append(title,meta);button.className='outline';button.textContent='验证并恢复';button.onclick=async()=>{const status=$('cloudBackupStatus');button.disabled=true;status.textContent='正在取得这份密文备份…';try{const file=await HealthLocal.downloadCloudBackup(item.object_key);await restoreEncryptedBackup(file,status)}catch{status.textContent='云备份下载失败，当前数据未改变。'}finally{button.disabled=false}};row.append(copy,button);box.append(row)}}
 async function refreshCloudBackups(){const status=$('cloudBackupStatus');if(!status)return;status.textContent='正在读取私有云中的密文备份…';try{const backups=await HealthLocal.listCloudBackups();renderCloudBackups(backups);status.textContent=`找到 ${backups.length} 份密文备份。恢复前仍会验证恢复口令。`}catch{status.textContent='暂时无法读取云备份；本机资料不受影响。'}}
@@ -363,4 +366,4 @@ if($('lockVaultBtn'))$('lockVaultBtn').onclick=()=>{HealthLocal.lock();location.
 if($('saveFeedbackBtn'))$('saveFeedbackBtn').onclick=async()=>{const text=$('feedbackText').value,s=$('feedbackStatus');try{await HealthLocal.saveFeedback(text,document.querySelector('.view.active')?.id);$('feedbackText').value='';s.textContent='内测问题已加密保存在本机，未附带健康原文。'}catch{s.textContent='请先写下问题描述（不要粘贴密钥）。'}};
 const today=$('todayLabel');if(today)today.textContent=new Intl.DateTimeFormat('zh-CN',{month:'long',day:'numeric',weekday:'long'}).format(new Date());
 health().then(loadEvents);refreshCloudBackupConfig();
-if(typeof navigator!=='undefined'&&'serviceWorker'in navigator&&['https:','http:'].includes(location.protocol))navigator.serviceWorker.register('/service-worker.js?build=full-20260917',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});
+if(typeof navigator!=='undefined'&&'serviceWorker'in navigator&&['https:','http:'].includes(location.protocol))navigator.serviceWorker.register('/service-worker.js?build=full-20260917-2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});

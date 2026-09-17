@@ -7,9 +7,9 @@
   },
   "run": {
     "status": "active",
-    "product_verdict": "partially_verified",
+    "product_verdict": "not_assessed",
     "stage": "plan_accepted",
-    "next_action": "把完整 elder-ui 前端接入当前本地优先双服务并在 5173 实测",
+    "next_action": "先修订规格和计划，再实现设备绑定、浏览器实测并发布 GitHub 主干",
     "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-17T06:02:24+00:00"
+    "updated_at": "2026-09-17T11:13:03+00:00"
   },
   "decisions": {
     "intent": {
@@ -33,91 +33,47 @@
     },
     "spec": {
       "status": "accepted",
-      "path": "docs/sdlc/spec-split-web-api-v2.md",
-      "artifact_sha256": "67dd43ec10fff7502bf7a131c5115b970080a984cc87d081f7c8ea2d74bfbe8e",
+      "path": "docs/sdlc/spec-device-binding-v3.md",
+      "artifact_sha256": "011186e5455fa1483d35e9390dd60d884c534a8529fdbd4bb9a4883e0e50973c",
       "accepted_by": "project owner",
-      "acceptance_reference": "2026-09-16 用户确认：一个 GitHub 项目，前端 5173 与后端 18768 独立运行；使用者只打开前端，前端自动调用后端。",
-      "accepted_at": "2026-09-16T15:49:22+00:00",
+      "acceptance_reference": "2026-09-17 用户确认老人只需解锁本机资料，在线能力改由家属/管理员绑定设备，失效不阻断本地记录，并要求立即实施。",
+      "accepted_at": "2026-09-17T11:13:02+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
     },
     "plan": {
       "status": "accepted",
-      "path": "docs/sdlc/plan-split-web-api-v2.md",
-      "artifact_sha256": "4f44c3b67377c614e9eff1c507c1749fbeb52a67454178665b4e920339c7175e",
+      "path": "docs/sdlc/plan-device-binding-v3.md",
+      "artifact_sha256": "e8a5333530aaae17b086425e473e8af3b803a13d1e85a2ba103c49092ba3659f",
       "accepted_by": "project owner",
-      "acceptance_reference": "2026-09-16 用户在看到双端口六步执行说明后回复“OK，是这个意思”。",
-      "accepted_at": "2026-09-16T15:49:22+00:00",
+      "acceptance_reference": "2026-09-17 用户要求立即改完、完整测试并上传 GitHub 主干。",
+      "accepted_at": "2026-09-17T11:13:03+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
     }
   },
   "target": {
-    "id": "f2b4ea8492d3da61bec28fc52478f12f0eea56d23af7fc7bc229a99b00bfaee2",
-    "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
-    "revision": "ff62d82b8f4dce7630beb2e85b2d9be98db142b6",
-    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; in-app Chromium",
-    "source": "git commit ff62d82 and local browser/runtime checks",
-    "artifact_path": "docs/evidence/local-frontend-open-2026-09-17.md",
-    "artifact_sha256": "94dd42c1114f1a8d17e28393771f729dd4131a202efb0b6631a5a1166616db49",
-    "set_at": "2026-09-17T06:02:08+00:00"
+    "id": null,
+    "contract_sha256": null,
+    "revision": null,
+    "environment": null,
+    "source": null,
+    "artifact_path": null,
+    "artifact_sha256": null,
+    "set_at": null
   },
   "requirements": {
-    "spec_sha256": "67dd43ec10fff7502bf7a131c5115b970080a984cc87d081f7c8ea2d74bfbe8e",
+    "spec_sha256": "011186e5455fa1483d35e9390dd60d884c534a8529fdbd4bb9a4883e0e50973c",
     "items": [
       {
         "id": "R1",
-        "acceptance": "[DZ-MUST:R1] 使用者能在手机和电脑的受支持浏览器中打开“病历不归零·内测版”；未通过所有者访问保护的人不能使用在线 AI 或备份能力，未解锁本地数据的人不能读取或修改当前设备上的健康资料。"
-      },
-      {
-        "id": "R2",
-        "acceptance": "[DZ-MUST:R2] 使用者能通过文字、浏览器真实录音和真实照片创建记录，并在任何 AI 处理前看到原话或原件已经加密保存到当前设备的明确状态。"
-      },
-      {
-        "id": "R3",
-        "acceptance": "[DZ-MUST:R3] 录音和照片在真实 AI 服务中成功识别后才显示识别文字；处理中、失败、超时、断网、权限拒绝和额度问题都有明确说明，失败不删除原件，付费 AI 请求不自动重试。"
-      },
-      {
-        "id": "R4",
-        "acceptance": "[DZ-MUST:R4] AI 整理结果始终显示为待核对草稿，使用者能对照原始资料确认、退回或修订；确认只表示记录准确，不表示医生确认、诊断或风险消失。"
-      },
-      {
-        "id": "R5",
-        "acceptance": "[DZ-MUST:R5] 使用者能在当前主设备的连续时间线中按关键词、日期范围、记录类型和处理状态查找记录，并查看原话、原件、AI 草稿、当前状态和修订历史；页面不把不同设备的独立本地数据误称为已经自动同步。"
-      },
-      {
-        "id": "R6",
-        "acceptance": "[DZ-MUST:R6] 使用者能通过保留历史的方式修订记录，也能在看到本地数据和密文备份的具体影响并二次确认后删除选中的记录及其本地原件；删除不得连带其他记录、恢复密钥或 API 密钥。"
-      },
-      {
-        "id": "R7",
-        "acceptance": "[DZ-MUST:R7] 使用者能选择日期范围和记录生成就诊材料，预览中保留原话、来源、未确定时间、待处理项和安全提醒，并能使用浏览器打印或导出 PDF，不自动对外分享。"
-      },
-      {
-        "id": "R8",
-        "acceptance": "[DZ-MUST:R8] 使用者能在设备端创建包含记录和媒体原件、不包含 API 密钥的加密一致性备份，选择下载到自己的文件位置或上传密文到私有 TOS，并能在新设备的隔离区预览、恢复和验证，不静默覆盖现有数据。"
+        "acceptance": "[DZ-MUST:R1] 使用者能在手机和电脑的受支持浏览器中打开“病历不归零·内测版”；老人只需输入本机恢复口令，不需再输入网站访问密码；未由家属或管理员绑定的设备不能使用在线 AI 或备份能力，未解锁本地数据的人不能读取或修改当前设备上的健康资料。"
       },
       {
         "id": "R9",
-        "acceptance": "[DZ-MUST:R9] 页面在空数据、加载、保存中、上传中、AI 处理中、待核对、断网、重启、会话失效、本机空间不足、备份过期、备份失败、局部失败和恢复后都给出真实状态和可继续动作，不将“已接受”、“处理中”、旧草稿或旧备份显示成本次成功。"
-      },
-      {
-        "id": "R10",
-        "acceptance": "[DZ-MUST:R10] 在首次使用真实 AI 前，页面明确说明选中的文字会发给 DeepSeek，选中的录音或照片会发给 AIHubMix 及其上游模型服务；使用者可以不同意外发而继续本地保存和手工整理，页面不宣称未经核实的服务商保留或训练政策。"
-      },
-      {
-        "id": "R11",
-        "acceptance": "[DZ-MUST:R11] 本地危险提醒和专业复核线索在保存、AI 失败、核对、修订、时间线、就诊材料和备份恢复后都不被静默清除；未命中规则不显示成“正常”或“无风险”。"
-      },
-      {
-        "id": "R12",
-        "acceptance": "[DZ-MUST:R12] 页面在主要手机尺寸和电脑屏幕上可读可点，关键流程可用键盘完成，录音和照片权限拒绝时提供文字或文件选择替代方式，不依赖颜色单独表达成功或危险。"
-      },
-      {
-        "id": "R13",
-        "acceptance": "[DZ-MUST:R13] 使用者能在应用内保存一条不默认附带健康原文或密钥的内测问题记录，包含当前页面、发生时间和用户描述，供后续修复和回归验证。"
+        "acceptance": "[DZ-MUST:R9] 页面在设备绑定失效时明确提示联系家属且不阻断本地功能，不将旧会话或失败请求显示成本次成功。"
       }
     ]
   },
@@ -493,7 +449,7 @@
       "required": true,
       "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
       "phase": "build",
-      "status": "verified",
+      "status": "implemented_unverified",
       "acceptance": [
         "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。"
       ],
@@ -505,8 +461,23 @@
       ],
       "note": "提交 ff62d82 已在 5173 实测；36 项前端、765 项 Python、合同检查、刷新持久化和 5173→18768 登录闭环通过。",
       "blocker": null,
-      "updated_at": "2026-09-17T06:02:24+00:00",
+      "updated_at": "2026-09-17T11:13:02+00:00",
       "carried_from": "W1A"
+    },
+    {
+      "id": "W1B",
+      "title": "移除老人端第二密码并建立设备绑定",
+      "required": true,
+      "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+      "phase": "build",
+      "status": "pending",
+      "acceptance": [
+        "老人端无网站密码框；家属短时链接可绑定设备；持久设备会话可跨刷新复用；失效只提示家属且不阻断本地功能；来源与 CSRF 防护保持有效；浏览器完成真实操作验证"
+      ],
+      "evidence_ids": [],
+      "note": null,
+      "blocker": null,
+      "updated_at": "2026-09-17T11:13:03+00:00"
     }
   ],
   "evidence": [
@@ -958,6 +929,30 @@
       "decision_by": "project owner",
       "decision_reference": "2026-09-17 用户没有确认云端部署，转而要求先正确调用并展示文件夹内已经完成的前端。",
       "decided_at": "2026-09-16T16:03:03+00:00"
+    },
+    {
+      "id": "RISK-GITHUB-MAIN-FULL-FRONTEND-20260917",
+      "title": "将完整前端修复提交快进发布到 GitHub main",
+      "level": "medium",
+      "action_kind": "public_release",
+      "consequence": "origin/main 将从 4ecbd92 快进到 ff62d82，GitHub 使用者会立即看到完整前端、缓存修复和更新后的 README。",
+      "safer_option": "先只推功能分支并通过 PR 合并，不直接改变 main。",
+      "recovery": "旧提交 4ecbd92 仍保留；如需撤回可新增反向提交恢复，不删除分支或标签。",
+      "scope": "仅执行 git push origin ff62d82b8f4dce7630beb2e85b2d9be98db142b6:main；不强推、不修改其他分支、标签或云资源。",
+      "lease_contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "lease_target_id": "f2b4ea8492d3da61bec28fc52478f12f0eea56d23af7fc7bc229a99b00bfaee2",
+      "lease_revision": "ff62d82b8f4dce7630beb2e85b2d9be98db142b6",
+      "lease_environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; in-app Chromium",
+      "amount_limit": null,
+      "expires_at": "2026-09-24T23:59:59+08:00",
+      "authorization_pending": false,
+      "decision": "declined",
+      "action_status": "declined",
+      "action_reference": null,
+      "action_at": null,
+      "decision_by": "project owner",
+      "decision_reference": "2026-09-17 用户发现老人端第二次网站密码不合理，要求先改成无需老人重复输入、完成测试后再上传 GitHub。",
+      "decided_at": "2026-09-17T11:09:21+00:00"
     }
   ],
   "issues": [
@@ -1101,20 +1096,35 @@
       "id": "FULL-FRONTEND-NOT-MERGED-20260917",
       "title": "完整 elder-ui 前端未合入当前 5173 入口",
       "kind": "implementation_gap",
-      "status": "verified",
+      "status": "implemented_unverified",
       "source": "5173 与 elder-ui 文件、浏览器 DOM、接口返回现场对照",
       "expected": "5173 显示此前完成的完整前端并调用 18768 当前本地优先接口",
       "actual": "5173 显示 backend-handoff 简化前端；完整 elder-ui 在另一工作目录且仍调用已禁用的旧接口",
       "impact": "使用者看不到此前完整界面，完整前端也无法实际读写当前后端能力",
       "route": "work_item",
       "work_item_id": "W1A@f0d4b7ca8e96",
-      "evidence_ids": [
-        "E-W1A-FULL-FF62D82"
-      ],
+      "evidence_ids": [],
       "resolution": "提交 ff62d82 已把完整 elder-ui 合入当前仓库并接到本地加密接口；5173 真实浏览器完成保存、刷新解锁和跨端口登录闭环。",
       "prevention": "发布前固定检查 5173 的完整品牌首页、三项底部导航、静态资源版本和浏览器持久化；禁止只凭后端健康页或旧 Service Worker 缓存判定前端完成。",
       "created_at": "2026-09-17T05:20:11+00:00",
-      "updated_at": "2026-09-17T06:02:24+00:00"
+      "updated_at": "2026-09-17T11:13:02+00:00"
+    },
+    {
+      "id": "ELDER-SECOND-PASSWORD-20260917",
+      "title": "老人端被要求重复输入网站访问密码",
+      "kind": "implementation_gap",
+      "status": "open",
+      "source": "2026-09-17 用户截图与现场反馈",
+      "expected": "老人只解锁一次本机资料，在线能力由家属绑定后静默使用，AI 外发仍逐次确认",
+      "actual": "本机解锁后首次在线操作又弹出网站访问密码，且会话可能在浏览器关闭后丢失",
+      "impact": "真实老人用户会困惑、受阻或放弃使用，破坏完整内测体验",
+      "route": "work_item",
+      "work_item_id": "W1B",
+      "evidence_ids": [],
+      "resolution": null,
+      "prevention": null,
+      "created_at": "2026-09-17T11:13:03+00:00",
+      "updated_at": "2026-09-17T11:13:03+00:00"
     }
   ]
 }

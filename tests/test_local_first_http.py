@@ -90,6 +90,52 @@ def test_split_frontend_can_login_and_reuse_cookie_cross_port(monkeypatch, tmp_p
         assert untrusted.body["error"] == "csrf_or_origin_rejected"
 
 
+def test_family_link_activates_a_persistent_device_session(monkeypatch, tmp_path):
+    configure(monkeypatch, tmp_path)
+    monkeypatch.setenv("APP_DEVICE_SESSION_TTL_SECONDS", "2592000")
+    origin = "http://127.0.0.1:5173"
+    activation_token, _ = server.app_access.issue_device_activation()
+    with running_http_server(server.Handler) as base_url:
+        client = HttpClient(base_url, {"Content-Type": "application/json", "Origin": origin})
+        activated = client.request("POST", "/api/app/device/activate", {"activation_token": activation_token})
+        assert activated.status == 200
+        assert activated.body["binding"] == "family_link"
+        assert "Max-Age=2592000" in activated.headers["Set-Cookie"]
+        assert "HttpOnly" in activated.headers["Set-Cookie"]
+        cookie = activated.headers["Set-Cookie"].split(";", 1)[0]
+
+        session = client.request("GET", "/api/app/session", headers={"Cookie": cookie})
+        assert session.body["authenticated"] is True
+        assert session.body["csrf_token"] == activated.body["csrf_token"]
+
+        rejected = client.request(
+            "POST",
+            "/api/app/device/activate",
+            {"activation_token": activation_token},
+            headers={"Origin": "https://untrusted.example"},
+        )
+        assert rejected.status == 403
+        assert rejected.body["error"] == "csrf_or_origin_rejected"
+
+
+def test_loopback_development_can_bind_silently_but_production_default_cannot(monkeypatch, tmp_path):
+    configure(monkeypatch, tmp_path)
+    origin = "http://127.0.0.1:5173"
+    with running_http_server(server.Handler) as base_url:
+        client = HttpClient(base_url, {"Content-Type": "application/json", "Origin": origin})
+        ordinary = client.request("GET", "/api/app/session")
+        assert ordinary.body == {"ok": True, "authenticated": False}
+
+        monkeypatch.setenv("APP_AUTO_BIND_LOOPBACK", "true")
+        bound = client.request("GET", "/api/app/session")
+        assert bound.body["authenticated"] is True
+        assert bound.body["binding"] == "loopback_development"
+        assert "Max-Age=" in bound.headers["Set-Cookie"]
+
+        no_origin = HttpClient(base_url, {"Content-Type": "application/json"}).request("GET", "/api/app/session")
+        assert no_origin.body == {"ok": True, "authenticated": False}
+
+
 def test_owner_login_protects_stateless_ai_and_does_not_write_cloud_database(monkeypatch, tmp_path):
     configure(monkeypatch, tmp_path)
     with running_http_server(server.Handler) as base_url:

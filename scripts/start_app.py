@@ -39,11 +39,11 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         print("无法读取项目 .env，请检查文件权限或 UTF-8 编码。")
         return 2
     issues = check_demo_configuration(env)
-    access_configured = app_access.configured()
+    access_configured = app_access.session_configured()
     print("模式：内测版（健康资料加密保存在浏览器）")
     for section, errors in issues.items():
         print(f"{section}：" + ("；".join(errors) if errors else "配置检查通过"))
-    print("网站访问保护：" + ("已配置" if access_configured else "未配置，AI 和云备份功能将拒绝请求"))
+    print("设备会话保护：" + ("已配置" if access_configured else "未配置，AI 和云备份功能将拒绝请求"))
     if generated_secret:
         print("本次已生成临时会话签名密钥；正式部署请在平台环境变量中配置 APP_SESSION_SECRET。")
     print("配置检查不会调用外部模型，也不证明真实识别质量。")

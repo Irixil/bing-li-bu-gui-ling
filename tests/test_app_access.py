@@ -44,6 +44,10 @@ def test_incomplete_access_configuration_fails_closed(monkeypatch):
     assert app_access.configured() is False
     assert app_access.verify_password("anything") is False
 
+    monkeypatch.setenv("APP_SESSION_SECRET", "s" * 32)
+    assert app_access.session_configured() is True
+    assert app_access.configured() is False
+
 
 def test_login_failures_are_bounded_and_success_clears_the_window():
     app_access.reset_login_limiter()
@@ -72,3 +76,39 @@ def test_cookie_policy_supports_split_services_without_weak_defaults(monkeypatch
     monkeypatch.setenv("APP_COOKIE_SECURE", "false")
     with pytest.raises(app_access.AccessConfigurationError, match="requires_secure"):
         app_access.cookie_header("token")
+
+
+def test_device_activation_is_signed_short_lived_and_tamper_evident(monkeypatch):
+    configure(monkeypatch)
+    monkeypatch.setenv("APP_DEVICE_ACTIVATION_TTL_SECONDS", "600")
+    token, expires_at = app_access.issue_device_activation(now=100)
+
+    assert expires_at == 700
+    assert app_access.verify_device_activation(token, now=699) is True
+    assert app_access.verify_device_activation(token, now=700) is False
+    assert app_access.verify_device_activation(token + "x", now=200) is False
+    assert app_access.verify_device_activation("not-a-token", now=200) is False
+
+
+def test_device_session_cookie_persists_for_configured_period(monkeypatch):
+    configure(monkeypatch)
+    monkeypatch.setenv("APP_DEVICE_SESSION_TTL_SECONDS", "2592000")
+    session, token, ttl = app_access.issue_device_session(now=100)
+    header = app_access.cookie_header(token, max_age=ttl)
+
+    assert session.expires_at == 2592100
+    assert "Max-Age=2592000" in header
+    assert "HttpOnly" in header
+    assert app_access.parse_session(f"{app_access.COOKIE_NAME}={token}", now=2592099) == session
+
+
+def test_loopback_auto_bind_requires_explicit_switch_exact_origin_and_loopback_client(monkeypatch):
+    configure(monkeypatch)
+    allowed = "http://127.0.0.1:5173"
+    assert app_access.loopback_auto_bind_allowed("127.0.0.1", allowed, allowed) is False
+
+    monkeypatch.setenv("APP_AUTO_BIND_LOOPBACK", "true")
+    assert app_access.loopback_auto_bind_allowed("127.0.0.1", allowed, allowed) is True
+    assert app_access.loopback_auto_bind_allowed("127.0.0.1", "https://untrusted.example", allowed) is False
+    assert app_access.loopback_auto_bind_allowed("203.0.113.9", allowed, allowed) is False
+    assert app_access.loopback_auto_bind_allowed("127.0.0.1", "http://localhost:5173", allowed) is False

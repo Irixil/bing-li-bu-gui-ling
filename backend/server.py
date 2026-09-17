@@ -230,7 +230,7 @@ class Handler(BaseHTTPRequestHandler):
   path=urlparse(self.path).path
   if app_access.local_first_enabled():
    if not self.origin_allowed():return False
-   if path=='/api/app/login':return True
+   if path in {'/api/app/login','/api/app/device/activate'}:return True
    if path=='/api/app/logout' or path.startswith('/api/ai/') or path.startswith('/api/backups/'):
     return app_access.request_authorized(self.headers.get('Cookie'),self.headers.get('X-CSRF-Token'),write=True) is not None
    return False
@@ -262,10 +262,13 @@ class Handler(BaseHTTPRequestHandler):
   if app_access.local_first_enabled() and p=='/':return self.send_json(200,{'ok':True,'service':'bingli-beta-api','kind':'api','frontend_hosted':False})
   if p=='/api/app/config':
    if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
-   return self.send_json(200,{'ok':True,'mode':'local_first','access_configured':app_access.configured(),'cloud_backup_configured':cloud_backup.configured(),'product_name':'病历不归零·内测版','data_location':'this_device','backup_mode':'encrypted_archive'})
+   return self.send_json(200,{'ok':True,'mode':'local_first','access_configured':app_access.session_configured(),'cloud_backup_configured':cloud_backup.configured(),'product_name':'病历不归零·内测版','data_location':'this_device','backup_mode':'encrypted_archive'})
   if p=='/api/app/session':
    if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
    session=app_access.request_authorized(self.headers.get('Cookie'),write=False)
+   if session is None and app_access.loopback_auto_bind_allowed(self.client_address[0],self.headers.get('Origin'),_allowed_origin()):
+    session,cookie,ttl=app_access.issue_device_session()
+    return self.send_json(200,{'ok':True,'authenticated':True,'csrf_token':session.csrf,'expires_at':session.expires_at,'binding':'loopback_development'},{'Set-Cookie':app_access.cookie_header(cookie,max_age=ttl)})
    return self.send_json(200,{'ok':True,'authenticated':session is not None,**({'csrf_token':session.csrf,'expires_at':session.expires_at} if session else {})})
   if p=='/api/backups':
    if not app_access.local_first_enabled():return self.send_json(404,{'ok':False,'error':'not_found'})
@@ -277,7 +280,7 @@ class Handler(BaseHTTPRequestHandler):
    return self.send_json(200,{'ok':True,'capabilities':_media_capabilities()})
   if p=='/health':
    c=Config.from_env()
-   if app_access.local_first_enabled():return self.send_json(200,{'ok':True,'service':'bingli-beta','provider':c.provider,'storage':'encrypted_on_device','mode':'local_first','schema_version':SCHEMA_VERSION,'access_configured':app_access.configured()})
+   if app_access.local_first_enabled():return self.send_json(200,{'ok':True,'service':'bingli-beta','provider':c.provider,'storage':'encrypted_on_device','mode':'local_first','schema_version':SCHEMA_VERSION,'access_configured':app_access.session_configured()})
    return self.send_json(200,{'ok':True,'service':'medical-handoff-p0','provider':c.provider,'storage':'sqlite','mode':'local_single_household','schema_version':SCHEMA_VERSION,'session_token':SESSION_TOKEN})
   if app_access.local_first_enabled() and p.startswith('/api/'):
    return self.send_json(404,{'ok':False,'error':'legacy_api_disabled'})
@@ -351,7 +354,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   if not self.csrf():return self.send_json(403,{'ok':False,'error':'csrf_or_origin_rejected'})
   p=urlparse(self.path).path
-  if app_access.local_first_enabled() and p.startswith('/api/') and p not in {'/api/app/login','/api/app/logout','/api/ai/organize','/api/backups/upload-grant','/api/backups/download-grant'} and not p.startswith('/api/ai/media/'):
+  if app_access.local_first_enabled() and p.startswith('/api/') and p not in {'/api/app/login','/api/app/device/activate','/api/app/logout','/api/ai/organize','/api/backups/upload-grant','/api/backups/download-grant'} and not p.startswith('/api/ai/media/'):
    return self.send_json(404,{'ok':False,'error':'legacy_api_disabled'})
   if p.startswith('/api/media/') and not p.startswith('/api/media/uploads'):
    try:self.media_write_enabled()
@@ -380,6 +383,11 @@ class Handler(BaseHTTPRequestHandler):
     app_access.record_login_result(login_id,True)
     session,cookie=app_access.issue_session()
     return self.send_json(200,{'ok':True,'csrf_token':session.csrf,'expires_at':session.expires_at},{'Set-Cookie':app_access.cookie_header(cookie)})
+   if p=='/api/app/device/activate':
+    if not app_access.session_configured():return self.send_json(503,{'ok':False,'error':'access_not_configured'})
+    if not app_access.verify_device_activation(b.get('activation_token')):return self.send_json(401,{'ok':False,'error':'device_activation_invalid'})
+    session,cookie,ttl=app_access.issue_device_session()
+    return self.send_json(200,{'ok':True,'csrf_token':session.csrf,'expires_at':session.expires_at,'binding':'family_link'},{'Set-Cookie':app_access.cookie_header(cookie,max_age=ttl)})
    if p=='/api/app/logout':
     return self.send_json(200,{'ok':True},{'Set-Cookie':app_access.cookie_header('',clear=True)})
    if p=='/api/backups/upload-grant':

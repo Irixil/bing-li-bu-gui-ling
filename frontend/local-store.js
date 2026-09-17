@@ -15,6 +15,8 @@
   const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
   let initialisePromise;
   let cloudCsrf = '';
+  let cloudSessionPromise;
+  let onlineState = { authenticated: false, status: 'checking' };
   let active = false;
 
   function apiUrl(path) { return globalThis.BingliConfig?.apiUrl(path) || path; }
@@ -32,11 +34,60 @@
   function mediaKey(mediaId) { return `media:${mediaId}`; }
   function mediaBinaryKey(mediaId) { return `media-binary:${mediaId}`; }
 
+  function publishOnlineState(state) {
+    onlineState = state;
+    globalThis.dispatchEvent?.(new CustomEvent('bingli:online-status', { detail: state }));
+    return state;
+  }
+
+  function consumeDeviceBindingToken() {
+    const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const token = params.get('bind');
+    if (!token) return '';
+    params.delete('bind');
+    const remaining = params.toString();
+    history.replaceState(null, '', `${location.pathname}${location.search}${remaining ? `#${remaining}` : ''}`);
+    return token.length <= 2048 ? token : '';
+  }
+
+  async function refreshOnlineSession() {
+    if (cloudSessionPromise) return cloudSessionPromise;
+    cloudSessionPromise = (async () => {
+      const activationToken = consumeDeviceBindingToken();
+      try {
+        if (activationToken) {
+          const activated = await fetch(apiUrl('/api/app/device/activate'), {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activation_token: activationToken }),
+          });
+          const activation = await activated.json();
+          if (!activated.ok) throw new Error(activation.error || 'device_activation_failed');
+          cloudCsrf = activation.csrf_token;
+          return publishOnlineState({ authenticated: true, status: 'bound', expiresAt: activation.expires_at });
+        }
+        const response = await fetch(apiUrl('/api/app/session'), { credentials: 'include' });
+        const body = await response.json();
+        if (response.ok && body.authenticated) {
+          cloudCsrf = body.csrf_token;
+          return publishOnlineState({ authenticated: true, status: 'bound', expiresAt: body.expires_at });
+        }
+        cloudCsrf = '';
+        return publishOnlineState({ authenticated: false, status: 'family_binding_required' });
+      } catch {
+        cloudCsrf = '';
+        return publishOnlineState({ authenticated: false, status: activationToken ? 'binding_failed' : 'network_unavailable' });
+      } finally {
+        cloudSessionPromise = null;
+      }
+    })();
+    return cloudSessionPromise;
+  }
+
   function injectGate() {
     if (document.getElementById('localVaultGate')) return;
     const gate = document.createElement('section');
     gate.id = 'localVaultGate'; gate.className = 'secure-gate'; gate.setAttribute('role', 'dialog'); gate.setAttribute('aria-modal', 'true');
-    gate.innerHTML = `<div class="secure-card"><div class="secure-brand"><img src="assets/brand-mascot.png" alt=""><div><strong>病历不归零·内测版</strong><span>你之前的完整前端已经在这里</span></div></div><p class="secure-kicker" id="vaultKicker">本机资料已加密</p><h1 id="vaultTitle">解锁本机健康资料</h1><p id="vaultExplain">健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。</p><form id="vaultForm"><label for="vaultPassphrase">恢复口令</label><input id="vaultPassphrase" type="password" minlength="10" autocomplete="current-password" required><label id="vaultConfirmLabel" for="vaultPassphraseConfirm" class="hidden">再输入一次</label><input id="vaultPassphraseConfirm" class="hidden" type="password" minlength="10" autocomplete="new-password"><button class="primary" id="vaultSubmit" type="submit">解锁</button><p id="vaultStatus" class="status" role="status"></p></form><p class="secure-foot">这是本机数据口令，与网站访问密码不是同一个。</p></div>`;
+    gate.innerHTML = `<div class="secure-card"><div class="secure-brand"><img src="assets/brand-mascot.png" alt=""><div><strong>病历不归零·内测版</strong><span>你之前的完整前端已经在这里</span></div></div><p class="secure-kicker" id="vaultKicker">本机资料已加密</p><h1 id="vaultTitle">解锁本机健康资料</h1><p id="vaultExplain">健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。</p><form id="vaultForm"><label for="vaultPassphrase">恢复口令</label><input id="vaultPassphrase" type="password" minlength="10" autocomplete="current-password" required><label id="vaultConfirmLabel" for="vaultPassphraseConfirm" class="hidden">再输入一次</label><input id="vaultPassphraseConfirm" class="hidden" type="password" minlength="10" autocomplete="new-password"><button class="primary" id="vaultSubmit" type="submit">解锁</button><p id="vaultStatus" class="status" role="status"></p></form><p class="secure-foot">日常使用只需这一个本机口令；在线功能由家属提前开通。</p></div>`;
     document.body.append(gate);
   }
 
@@ -70,6 +121,7 @@
           document.getElementById('vaultPassphraseConfirm').value = '';
           active = true; gate.classList.add('hidden');
           try { await navigator.storage?.persist?.(); } catch {}
+          await refreshOnlineSession();
           resolve(true);
         } catch {
           message.textContent = isSetup ? '建立失败，请确认浏览器允许本地存储。' : '口令不正确或本地数据已损坏。';
@@ -85,34 +137,9 @@
     return true;
   }
 
-  function injectCloudLogin() {
-    let gate = document.getElementById('cloudLoginGate');
-    if (gate) return gate;
-    gate = document.createElement('section'); gate.id = 'cloudLoginGate'; gate.className = 'secure-gate hidden'; gate.setAttribute('role', 'dialog'); gate.setAttribute('aria-modal', 'true');
-    gate.innerHTML = `<div class="secure-card"><p class="secure-kicker">在线能力</p><h1>登录后使用 AI 和云备份</h1><p>这一层只保护网上功能，不能解密你的本机资料。</p><form id="cloudLoginForm"><label for="cloudPassword">网站访问密码</label><input id="cloudPassword" type="password" autocomplete="current-password" required><button class="primary" type="submit">登录</button><button class="outline" id="cloudLoginCancel" type="button">暂不使用在线功能</button><p id="cloudLoginStatus" class="status" role="status"></p></form></div>`;
-    document.body.append(gate); return gate;
-  }
-
   async function ensureCloudSession() {
-    try {
-      const response = await fetch(apiUrl('/api/app/session'), { credentials: 'include' });
-      const body = await response.json();
-      if (response.ok && body.authenticated) { cloudCsrf = body.csrf_token; return true; }
-    } catch {}
-    const gate = injectCloudLogin(); gate.classList.remove('hidden');
-    return new Promise(resolve => {
-      const form = document.getElementById('cloudLoginForm'); const message = document.getElementById('cloudLoginStatus');
-      document.getElementById('cloudLoginCancel').onclick = () => { gate.classList.add('hidden'); resolve(false); };
-      form.onsubmit = async event => {
-        event.preventDefault(); const button = form.querySelector('[type="submit"]'); button.disabled = true; message.textContent = '正在登录…';
-        try {
-          const response = await fetch(apiUrl('/api/app/login'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: document.getElementById('cloudPassword').value }) });
-          const body = await response.json();
-          if (!response.ok) throw new Error(body.error);
-          cloudCsrf = body.csrf_token; document.getElementById('cloudPassword').value = ''; gate.classList.add('hidden'); resolve(true);
-        } catch { message.textContent = '登录失败，请核对访问密码。'; button.disabled = false; }
-      };
-    });
+    const state = await refreshOnlineSession();
+    return state.authenticated === true;
   }
 
   function ensureAiConsent(kind) {
@@ -123,12 +150,15 @@
   }
 
   async function cloudRequest(path, options = {}) {
-    if (!await ensureCloudSession()) return fail(401, 'online_access_cancelled');
+    if (!await ensureCloudSession()) return fail(401, 'family_device_binding_required', { local_features_available: true });
     const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}), 'X-CSRF-Token': cloudCsrf };
     try {
       const response = await fetch(apiUrl(path), { ...options, credentials: 'include', headers });
       let body = {}; try { body = await response.json(); } catch {}
-      if (response.status === 403) cloudCsrf = '';
+      if (response.status === 401 || response.status === 403) {
+        cloudCsrf = '';
+        publishOnlineState({ authenticated: false, status: 'family_binding_required' });
+      }
       return { r: response, j: body };
     } catch { return fail(0, 'network_unavailable'); }
   }
@@ -269,7 +299,8 @@
       const updated = { ...media, recognition_status: 'succeeded', recognition: result.j.recognition, local_safety: result.j.local_safety, version: media.version + 1, updated_at: now() };
       await vault.put(mediaKey(media.media_id), updated);
     } catch (error) {
-      const updated = { ...media, recognition_status: 'failed', recognition: { error_message: '识别失败，原件仍保存在本机。', error: { code: error.code || 'recognition_failed', retryable: error.retryable === true }, retryable: error.retryable === true }, version: media.version + 1, updated_at: now() };
+      const bindingRequired = error.code === 'family_device_binding_required';
+      const updated = { ...media, recognition_status: 'failed', recognition: { error_message: bindingRequired ? '在线识别尚未由家属开通，原件仍保存在本机。请让家属用绑定链接在这台设备打开一次。' : '识别失败，原件仍保存在本机。', error: { code: error.code || 'recognition_failed', retryable: error.retryable === true }, retryable: error.retryable === true }, version: media.version + 1, updated_at: now() };
       await vault.put(mediaKey(media.media_id), updated);
     }
   }
@@ -367,6 +398,7 @@
     listCloudBackups,
     lock() { vault.lock(); active = false; initialisePromise = null; },
     originalObjectUrl,
+    onlineStatus: refreshOnlineSession,
     previewBackup,
     request,
     restoreBackup,
