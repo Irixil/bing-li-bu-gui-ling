@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-17T05:59:45+00:00"
+    "updated_at": "2026-09-17T06:02:24+00:00"
   },
   "decisions": {
     "intent": {
@@ -55,14 +55,14 @@
     }
   },
   "target": {
-    "id": "d89e35427656ac3c57bdd10bb74e96dbce65b258316a62a372fe2b0d1ea47fd6",
+    "id": "f2b4ea8492d3da61bec28fc52478f12f0eea56d23af7fc7bc229a99b00bfaee2",
     "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
-    "revision": "working-tree@full-frontend-20260917",
+    "revision": "ff62d82b8f4dce7630beb2e85b2d9be98db142b6",
     "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; in-app Chromium",
-    "source": "current working tree and local browser/runtime checks",
+    "source": "git commit ff62d82 and local browser/runtime checks",
     "artifact_path": "docs/evidence/local-frontend-open-2026-09-17.md",
-    "artifact_sha256": "3fb05fcb109f32712fdf8372af01686f4d1775fe69db6d07e19b51e81e9a8b03",
-    "set_at": "2026-09-17T05:58:36+00:00"
+    "artifact_sha256": "94dd42c1114f1a8d17e28393771f729dd4131a202efb0b6631a5a1166616db49",
+    "set_at": "2026-09-17T06:02:08+00:00"
   },
   "requirements": {
     "spec_sha256": "67dd43ec10fff7502bf7a131c5115b970080a984cc87d081f7c8ea2d74bfbe8e",
@@ -500,11 +500,12 @@
       "evidence_ids": [
         "E-W1A-COMMIT-20260916",
         "E-LOCAL-FRONTEND-ENTRY-20260917",
-        "E-W1A-FULL-20260917"
+        "E-W1A-FULL-20260917",
+        "E-W1A-FULL-FF62D82"
       ],
-      "note": "完整前端已合入并在 5173 实测；36 项前端、765 项 Python、合同检查、刷新持久化和 5173→18768 登录闭环通过。",
+      "note": "提交 ff62d82 已在 5173 实测；36 项前端、765 项 Python、合同检查、刷新持久化和 5173→18768 登录闭环通过。",
       "blocker": null,
-      "updated_at": "2026-09-17T05:59:45+00:00",
+      "updated_at": "2026-09-17T06:02:24+00:00",
       "carried_from": "W1A"
     }
   ],
@@ -746,6 +747,23 @@
       "result": "passed",
       "resolves": [],
       "recorded_at": "2026-09-17T05:59:25+00:00"
+    },
+    {
+      "id": "E-W1A-FULL-FF62D82",
+      "work_item_id": "W1A@f0d4b7ca8e96",
+      "contract_sha256": "f0d4b7ca8e96394a0947f1efa82ee5ad970fe2d02c3afa3be79189eb7f8dbb00",
+      "target_id": "f2b4ea8492d3da61bec28fc52478f12f0eea56d23af7fc7bc229a99b00bfaee2",
+      "acceptance": "从前端 5173 打开完整产品页面，页面安全调用后端 18768；后端根地址不托管前端；README 只把前端地址写成使用入口。",
+      "kind": "browser_and_regression",
+      "claim": "提交 ff62d82 包含完整 elder-ui；加密记录刷新后仍存在；5173 到 18768 登录与健康接口成功；36 项前端、765 项 Python 与 TypeScript 合同通过。",
+      "source": "in-app Chromium, Node test runner, pytest, local HTTP checks",
+      "artifact_path": "docs/evidence/local-frontend-open-2026-09-17.md",
+      "artifact_sha256": "94dd42c1114f1a8d17e28393771f729dd4131a202efb0b6631a5a1166616db49",
+      "revision": "ff62d82b8f4dce7630beb2e85b2d9be98db142b6",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; in-app Chromium",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-17T06:02:24+00:00"
     }
   ],
   "risks": [
@@ -1091,12 +1109,12 @@
       "route": "work_item",
       "work_item_id": "W1A@f0d4b7ca8e96",
       "evidence_ids": [
-        "E-W1A-FULL-20260917"
+        "E-W1A-FULL-FF62D82"
       ],
-      "resolution": "完整 elder-ui 视觉与交互已合入当前仓库并接到本地加密接口；5173 真实浏览器完成保存、刷新解锁和跨端口登录闭环。",
+      "resolution": "提交 ff62d82 已把完整 elder-ui 合入当前仓库并接到本地加密接口；5173 真实浏览器完成保存、刷新解锁和跨端口登录闭环。",
       "prevention": "发布前固定检查 5173 的完整品牌首页、三项底部导航、静态资源版本和浏览器持久化；禁止只凭后端健康页或旧 Service Worker 缓存判定前端完成。",
       "created_at": "2026-09-17T05:20:11+00:00",
-      "updated_at": "2026-09-17T05:59:45+00:00"
+      "updated_at": "2026-09-17T06:02:24+00:00"
     }
   ]
 }
