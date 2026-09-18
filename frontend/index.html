@@ -101,8 +101,8 @@
           <button id="photoUploadLabel" class="upload-drop" type="button" aria-controls="photoInput"><svg aria-hidden="true"><use href="#i-camera"/></svg><b>拍一张照片</b><span>也可以从手机相册里选择</span></button>
           <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
           <div id="photoPreview" class="photo-preview hidden"></div>
-          <button id="savePhotoBtn" class="primary hidden" type="button">加密保存原件</button>
-          <p class="privacy-note">原图先加密保存在这台设备；只有你主动选择识别时，才会发给 AIHubMix 及其上游模型。复杂图片仍以原图为准。</p>
+          <button id="savePhotoBtn" class="primary hidden" type="button">保存并识别</button>
+          <p class="privacy-note">原图会先加密保存在这台设备，然后自动发给 AIHubMix 及其上游模型识别。复杂图片仍以原图为准。</p>
         </div>
       </section>
 
@@ -136,8 +136,7 @@
         <button class="back-btn" type="button" data-view="homeView"><svg aria-hidden="true"><use href="#i-back"/></svg> 返回首页</button>
         <div class="records-head"><h1 id="settingsTitle" tabindex="-1">数据与内测设置</h1></div>
         <div class="settings-grid">
-          <section class="settings-card"><h2>在线功能</h2><p id="onlineAccessStatus" class="status" role="status" aria-live="polite">正在检查这台设备的在线功能…</p><p class="muted">老人不需要输入网站密码。若设备尚未开通，请让家属用绑定链接在这台设备打开一次；本机记录始终可以继续使用。</p></section>
-          <section class="settings-card"><h2>加密备份</h2><p>下载文件包含记录和原件的密文，不包含 API 密钥。恢复时需要本机恢复口令。</p><button id="downloadBackupBtn" class="primary" type="button">下载加密备份</button><label class="file-label" for="restoreBackupInput">选择备份文件恢复</label><input id="restoreBackupInput" type="file" accept=".bingli,application/json"><p id="backupStatus" class="status" role="status"></p><div class="cloud-backup-actions"><button id="uploadCloudBackupBtn" class="outline" type="button" disabled>上传密文到私有云备份</button><button id="refreshCloudBackupsBtn" class="outline" type="button" disabled>查看云备份</button></div><p id="cloudBackupStatus" class="status" role="status">正在检查私有云备份配置…</p><div id="cloudBackups" class="cloud-backups"></div></section>
+          <section class="settings-card"><h2>加密备份</h2><p>下载文件包含记录和原件的密文，不包含 API 密钥。恢复时需要本机恢复口令。</p><button id="downloadBackupBtn" class="primary" type="button">下载加密备份</button><label class="file-label" for="restoreBackupInput">选择备份文件恢复</label><input id="restoreBackupInput" type="file" accept=".bingli,application/json"><p id="backupStatus" class="status" role="status"></p></section>
           <section class="settings-card"><h2>当前设备</h2><p id="storageStatus">正在检查本机存储状态…</p><button id="lockVaultBtn" class="outline" type="button">立即锁定本机资料</button></section>
           <section class="settings-card"><h2>提交内测问题</h2><p>只保存你主动填写的描述、当前页面和时间；不默认附带健康原文或密钥。</p><textarea id="feedbackText" rows="5" placeholder="遇到了什么？你期望发生什么？"></textarea><button id="saveFeedbackBtn" class="primary" type="button">保存内测问题</button><p id="feedbackStatus" class="status" role="status"></p></section>
         </div>
@@ -153,13 +152,13 @@
 
   <template id="eventTpl"><article class="event-item"><label class="handoff-choice"><input class="handoff-select" type="checkbox" checked><span>用于就诊交接</span></label><div class="event-main"><div class="event-date"></div><div class="event-raw"></div><div class="badges"></div></div><button class="view-btn" type="button">查看</button></article></template>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="runtime-config.js?v=20260917-full-2"></script>
-  <script src="config.js?v=20260917-full-2"></script>
-  <script src="local-store-core.js?v=20260917-full-2"></script>
-  <script src="safety.js?v=20260917-full-2"></script>
-  <script src="local-store.js?v=20260917-full-2"></script>
-  <script src="splash.js?v=20260917-full-2"></script>
-  <script src="app.js?v=20260917-full-2"></script>
-  <script src="media.js?v=20260917-full-2"></script>
+  <script src="runtime-config.js?v=20260918-minimal-2"></script>
+  <script src="config.js?v=20260918-minimal-2"></script>
+  <script src="local-store-core.js?v=20260918-minimal-2"></script>
+  <script src="safety.js?v=20260918-minimal-2"></script>
+  <script src="local-store.js?v=20260918-minimal-2"></script>
+  <script src="splash.js?v=20260918-minimal-2"></script>
+  <script src="app.js?v=20260918-minimal-2"></script>
+  <script src="media.js?v=20260918-minimal-2"></script>
 </body>
 </html>

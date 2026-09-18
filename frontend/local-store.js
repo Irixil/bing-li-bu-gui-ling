@@ -14,9 +14,6 @@
   };
   const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
   let initialisePromise;
-  let cloudCsrf = '';
-  let cloudSessionPromise;
-  let onlineState = { authenticated: false, status: 'checking' };
   let active = false;
 
   function apiUrl(path) { return globalThis.BingliConfig?.apiUrl(path) || path; }
@@ -34,60 +31,11 @@
   function mediaKey(mediaId) { return `media:${mediaId}`; }
   function mediaBinaryKey(mediaId) { return `media-binary:${mediaId}`; }
 
-  function publishOnlineState(state) {
-    onlineState = state;
-    globalThis.dispatchEvent?.(new CustomEvent('bingli:online-status', { detail: state }));
-    return state;
-  }
-
-  function consumeDeviceBindingToken() {
-    const params = new URLSearchParams(location.hash.replace(/^#/, ''));
-    const token = params.get('bind');
-    if (!token) return '';
-    params.delete('bind');
-    const remaining = params.toString();
-    history.replaceState(null, '', `${location.pathname}${location.search}${remaining ? `#${remaining}` : ''}`);
-    return token.length <= 2048 ? token : '';
-  }
-
-  async function refreshOnlineSession() {
-    if (cloudSessionPromise) return cloudSessionPromise;
-    cloudSessionPromise = (async () => {
-      const activationToken = consumeDeviceBindingToken();
-      try {
-        if (activationToken) {
-          const activated = await fetch(apiUrl('/api/app/device/activate'), {
-            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activation_token: activationToken }),
-          });
-          const activation = await activated.json();
-          if (!activated.ok) throw new Error(activation.error || 'device_activation_failed');
-          cloudCsrf = activation.csrf_token;
-          return publishOnlineState({ authenticated: true, status: 'bound', expiresAt: activation.expires_at });
-        }
-        const response = await fetch(apiUrl('/api/app/session'), { credentials: 'include' });
-        const body = await response.json();
-        if (response.ok && body.authenticated) {
-          cloudCsrf = body.csrf_token;
-          return publishOnlineState({ authenticated: true, status: 'bound', expiresAt: body.expires_at });
-        }
-        cloudCsrf = '';
-        return publishOnlineState({ authenticated: false, status: 'family_binding_required' });
-      } catch {
-        cloudCsrf = '';
-        return publishOnlineState({ authenticated: false, status: activationToken ? 'binding_failed' : 'network_unavailable' });
-      } finally {
-        cloudSessionPromise = null;
-      }
-    })();
-    return cloudSessionPromise;
-  }
-
   function injectGate() {
     if (document.getElementById('localVaultGate')) return;
     const gate = document.createElement('section');
     gate.id = 'localVaultGate'; gate.className = 'secure-gate'; gate.setAttribute('role', 'dialog'); gate.setAttribute('aria-modal', 'true');
-    gate.innerHTML = `<div class="secure-card"><div class="secure-brand"><img src="assets/brand-mascot.png" alt=""><div><strong>病历不归零·内测版</strong><span>你之前的完整前端已经在这里</span></div></div><p class="secure-kicker" id="vaultKicker">本机资料已加密</p><h1 id="vaultTitle">解锁本机健康资料</h1><p id="vaultExplain">健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。</p><form id="vaultForm"><label for="vaultPassphrase">恢复口令</label><input id="vaultPassphrase" type="password" minlength="10" autocomplete="current-password" required><label id="vaultConfirmLabel" for="vaultPassphraseConfirm" class="hidden">再输入一次</label><input id="vaultPassphraseConfirm" class="hidden" type="password" minlength="10" autocomplete="new-password"><button class="primary" id="vaultSubmit" type="submit">解锁</button><p id="vaultStatus" class="status" role="status"></p></form><p class="secure-foot">日常使用只需这一个本机口令；在线功能由家属提前开通。</p></div>`;
+    gate.innerHTML = `<div class="secure-card"><div class="secure-brand"><img src="assets/brand-mascot.png" alt=""><div><strong>病历不归零·内测版</strong><span>你之前的完整前端已经在这里</span></div></div><p class="secure-kicker" id="vaultKicker">本机资料已加密</p><h1 id="vaultTitle">解锁本机健康资料</h1><p id="vaultExplain">健康记录加密保存在当前浏览器。恢复口令不会上传；忘记后无法由服务器找回。</p><form id="vaultForm"><label for="vaultPassphrase">恢复口令</label><input id="vaultPassphrase" type="password" minlength="10" autocomplete="current-password" required><label id="vaultConfirmLabel" for="vaultPassphraseConfirm" class="hidden">再输入一次</label><input id="vaultPassphraseConfirm" class="hidden" type="password" minlength="10" autocomplete="new-password"><button class="primary" id="vaultSubmit" type="submit">解锁</button><p id="vaultStatus" class="status" role="status"></p></form><p class="secure-foot">日常使用只需这一个本机口令。</p></div>`;
     document.body.append(gate);
   }
 
@@ -121,7 +69,6 @@
           document.getElementById('vaultPassphraseConfirm').value = '';
           active = true; gate.classList.add('hidden');
           try { await navigator.storage?.persist?.(); } catch {}
-          await refreshOnlineSession();
           resolve(true);
         } catch {
           message.textContent = isSetup ? '建立失败，请确认浏览器允许本地存储。' : '口令不正确或本地数据已损坏。';
@@ -137,28 +84,11 @@
     return true;
   }
 
-  async function ensureCloudSession() {
-    const state = await refreshOnlineSession();
-    return state.authenticated === true;
-  }
-
-  function ensureAiConsent(kind) {
-    const copy = kind === 'organize'
-      ? '本次会把选中记录的原文发给 DeepSeek 进行整理。不同意也可以继续本地保存和手工整理。是否继续？'
-      : '本次会把选中的录音或照片发给 AIHubMix 及其上游模型服务进行识别。不同意不影响原件本地保存。是否继续？';
-    return globalThis.confirm(copy);
-  }
-
   async function cloudRequest(path, options = {}) {
-    if (!await ensureCloudSession()) return fail(401, 'family_device_binding_required', { local_features_available: true });
-    const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}), 'X-CSRF-Token': cloudCsrf };
+    const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
     try {
       const response = await fetch(apiUrl(path), { ...options, credentials: 'include', headers });
       let body = {}; try { body = await response.json(); } catch {}
-      if (response.status === 401 || response.status === 403) {
-        cloudCsrf = '';
-        publishOnlineState({ authenticated: false, status: 'family_binding_required' });
-      }
       return { r: response, j: body };
     } catch { return fail(0, 'network_unavailable'); }
   }
@@ -209,10 +139,9 @@
     if (method !== 'POST') return fail(404, 'not_found');
     if (Number(body.expected_version) !== event.version) return fail(409, 'stale_version');
     if (parts[3] === 'organize') {
-      if (!ensureAiConsent('organize')) return fail(412, 'ai_consent_declined', { event });
       const related = (event.related_record_ids || []).map(item => vault.get(eventKey(item)));
       const history = (await Promise.all(related)).filter(Boolean).map(item => ({ record_id: item.record_id, raw_text: item.raw_text, source_kind: item.source_kind, recorded_at: item.recorded_at, occurred_time: item.occurred_time }));
-      const result = await cloudRequest('/api/ai/organize', { method: 'POST', body: JSON.stringify({ record_id: event.record_id, raw_text: event.raw_text, source_kind: event.source_kind, recorded_at: event.recorded_at, occurred_time: event.occurred_time, history, consent: true }) });
+      const result = await cloudRequest('/api/ai/organize', { method: 'POST', body: JSON.stringify({ record_id: event.record_id, raw_text: event.raw_text, source_kind: event.source_kind, recorded_at: event.recorded_at, occurred_time: event.occurred_time, history }) });
       if (!result.r.ok) return ok(result.r.status || 422, { ...result.j, event, local_safety: event.local_safety });
       const updated = await updateEvent(event, 'organized', { state: 'draft', draft: result.j.output, local_safety: event.local_safety, ai_metadata: { provider: result.j.provider, model_id: result.j.model_id, prompt_version: result.j.prompt_version, trace_id: result.j.trace_id } });
       return ok(200, { ok: true, event: updated, ...result.j });
@@ -276,7 +205,6 @@
     if (parts.length === 3 && method === 'GET') return ok(200, { ok: true, media: mediaPublic(media) });
     if (parts[3] === 'recognize' && method === 'POST') {
       if (media.recognition_status === 'processing') return ok(202, { ok: true, action: 'existing', media: mediaPublic(media) });
-      if (!ensureAiConsent('media')) return fail(412, 'ai_consent_declined');
       const processing = { ...media, recognition_status: 'processing', version: media.version + 1, updated_at: now(), recognition: null };
       await vault.put(mediaKey(mediaId), processing); processRecognition(processing); return ok(202, { ok: true, action: 'started', media: mediaPublic(processing) });
     }
@@ -296,11 +224,12 @@
       const form = new FormData(); form.append('kind', media.kind); form.append('content_type', media.content_type); form.append('attempt_id', id('attempt')); form.append('file', new Blob([original.bytes], { type: media.content_type }), media.original_filename);
       const result = await cloudRequest('/api/ai/media/recognize', { method: 'POST', body: form });
       if (!result.r.ok) throw Object.assign(new Error(result.j.error || 'recognition_failed'), { code: result.j.error, retryable: result.j.retryable === true });
-      const updated = { ...media, recognition_status: 'succeeded', recognition: result.j.recognition, local_safety: result.j.local_safety, version: media.version + 1, updated_at: now() };
+      const created = await createEvent({ raw_text: result.j.recognition.text, source_kind: media.kind === 'audio' ? 'audio_transcript' : 'document', actor_name: '本地用户' }, `media-link:${media.media_id}`);
+      const updated = { ...media, recognition_status: 'succeeded', recognition: result.j.recognition, local_safety: created.j.event.local_safety, event_link: { record_id: created.j.event.record_id }, record_id: created.j.event.record_id, link_status: 'linked', version: media.version + 1, updated_at: now() };
       await vault.put(mediaKey(media.media_id), updated);
     } catch (error) {
-      const bindingRequired = error.code === 'family_device_binding_required';
-      const updated = { ...media, recognition_status: 'failed', recognition: { error_message: bindingRequired ? '在线识别尚未由家属开通，原件仍保存在本机。请让家属用绑定链接在这台设备打开一次。' : '识别失败，原件仍保存在本机。', error: { code: error.code || 'recognition_failed', retryable: error.retryable === true }, retryable: error.retryable === true }, version: media.version + 1, updated_at: now() };
+      const retryable = error.retryable === true || ['network_unavailable', 'provider_timeout', 'provider_unavailable', 'provider_rate_limited'].includes(error.code);
+      const updated = { ...media, recognition_status: 'failed', recognition: { error_message: retryable ? '识别没有完成，原件已保存在本机，可以重试。' : '识别没有完成，原件已保存在本机。', error: { code: error.code || 'recognition_failed', retryable }, retryable }, version: media.version + 1, updated_at: now() };
       await vault.put(mediaKey(media.media_id), updated);
     }
   }
@@ -335,36 +264,6 @@
     const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `病历不归零-加密备份-${new Date().toISOString().slice(0, 10)}.bingli`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  async function uploadCloudBackup() {
-    const blob = await backupBlob();
-    if (blob.size > 100 * 1024 * 1024) throw new Error('backup_too_large');
-    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))]
-      .map(value => value.toString(16).padStart(2, '0')).join('');
-    const granted = await cloudRequest('/api/backups/upload-grant', { method: 'POST', body: JSON.stringify({ size: blob.size, sha256: digest }) });
-    if (!granted.r.ok || !granted.j.grant?.url) throw new Error(granted.j.error || 'backup_grant_failed');
-    const grant = granted.j.grant;
-    const response = await fetch(grant.url, { method: 'PUT', headers: grant.headers || {}, body: blob });
-    if (!response.ok) throw new Error('backup_upload_failed');
-    return { objectKey: grant.object_key, size: blob.size, sha256: digest };
-  }
-
-  async function listCloudBackups() {
-    const result = await cloudRequest('/api/backups', { method: 'GET' });
-    if (!result.r.ok) throw new Error(result.j.error || 'backup_list_failed');
-    return result.j.backups || [];
-  }
-
-  async function downloadCloudBackup(objectKey) {
-    const granted = await cloudRequest('/api/backups/download-grant', { method: 'POST', body: JSON.stringify({ object_key: objectKey }) });
-    if (!granted.r.ok || !granted.j.grant?.url) throw new Error(granted.j.error || 'backup_grant_failed');
-    const grant = granted.j.grant;
-    const response = await fetch(grant.url, { method: 'GET', headers: grant.headers || {} });
-    if (!response.ok) throw new Error('backup_download_failed');
-    const blob = await response.blob();
-    if (!blob.size || blob.size > 100 * 1024 * 1024) throw new Error('backup_too_large');
-    return blob;
-  }
-
   async function previewBackup(file, passphrase) {
     await initialise();
     if (!file || file.size > 100 * 1024 * 1024) throw new Error('backup_too_large');
@@ -392,19 +291,15 @@
 
   globalThis.HealthLocal = {
     get active() { return active; },
-    downloadCloudBackup,
     downloadBackup,
     initialise,
-    listCloudBackups,
     lock() { vault.lock(); active = false; initialisePromise = null; },
     originalObjectUrl,
-    onlineStatus: refreshOnlineSession,
     previewBackup,
     request,
     restoreBackup,
     saveFeedback,
     storageStatus,
-    uploadCloudBackup,
     vault,
   };
 })();

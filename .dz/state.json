@@ -9,7 +9,7 @@
     "status": "active",
     "product_verdict": "implemented_unverified",
     "stage": "plan_accepted",
-    "next_action": "后续在正式双服务云环境配置前端地址后，用家属绑定链接完成手机内测；本地 5173/18768 已可直接继续测试。",
+    "next_action": "实现 W1C：删除前端 AI 确认和家属绑定依赖，连通保存、自动识别、自动建记录和就诊报告，然后全量与浏览器验证。",
     "waiting_for": null,
     "pending_risk_id": null,
     "authorized_risk_id": null,
@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-17T11:39:51+00:00"
+    "updated_at": "2026-09-18T08:24:35+00:00"
   },
   "decisions": {
     "intent": {
@@ -33,47 +33,55 @@
     },
     "spec": {
       "status": "accepted",
-      "path": "docs/sdlc/spec-device-binding-v3.md",
-      "artifact_sha256": "011186e5455fa1483d35e9390dd60d884c534a8529fdbd4bb9a4883e0e50973c",
+      "path": "docs/sdlc/spec-minimal-loop-v4.md",
+      "artifact_sha256": "020266875cf73cf83ceb07cc314ba27f665d34b8ec89415a0f6874bab7311978",
       "accepted_by": "project owner",
-      "acceptance_reference": "2026-09-17 用户确认老人只需解锁本机资料，在线能力改由家属/管理员绑定设备，失效不阻断本地记录，并要求立即实施。",
-      "accepted_at": "2026-09-17T11:13:02+00:00",
+      "acceptance_reference": "2026-09-18 用户明确要求去掉逐次 AI 确认和家属设备绑定，先跑通保存、读取、报告最小闭环",
+      "accepted_at": "2026-09-18T08:23:50+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
     },
     "plan": {
       "status": "accepted",
-      "path": "docs/sdlc/plan-device-binding-v3.md",
-      "artifact_sha256": "e8a5333530aaae17b086425e473e8af3b803a13d1e85a2ba103c49092ba3659f",
+      "path": "docs/sdlc/plan-minimal-loop-v4.md",
+      "artifact_sha256": "6908ea0ba01a10df2593a4a98bd6223fca2e5f22261027fd0d4ea386722fcf0c",
       "accepted_by": "project owner",
-      "acceptance_reference": "2026-09-17 用户要求立即改完、完整测试并上传 GitHub 主干。",
-      "accepted_at": "2026-09-17T11:13:03+00:00",
+      "acceptance_reference": "2026-09-18 用户确认立即按最小闭环实施并不再逐步询问",
+      "accepted_at": "2026-09-18T08:23:50+00:00",
       "proposal_path": null,
       "proposal_sha256": null,
       "proposal_created_at": null
     }
   },
   "target": {
-    "id": "5e60db0a45fcda46687bce80882032ad90139bfda5fb381ff8c93ee1417ba8de",
-    "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
-    "revision": "5bc1035",
-    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated ego-browser 5174/18769; B-release gate 7/7",
-    "source": "git commit 5bc1035; full tests, isolated browser and release gate passed",
-    "artifact_path": "docs/evidence/device-binding-browser-2026-09-17.md",
-    "artifact_sha256": "89a14728e3f8d074d2a7facc9cb10b8d846c04f267a48a2e2b80fb56e066c819",
-    "set_at": "2026-09-17T11:38:23+00:00"
+    "id": null,
+    "contract_sha256": null,
+    "revision": null,
+    "environment": null,
+    "source": null,
+    "artifact_path": null,
+    "artifact_sha256": null,
+    "set_at": null
   },
   "requirements": {
-    "spec_sha256": "011186e5455fa1483d35e9390dd60d884c534a8529fdbd4bb9a4883e0e50973c",
+    "spec_sha256": "020266875cf73cf83ceb07cc314ba27f665d34b8ec89415a0f6874bab7311978",
     "items": [
       {
         "id": "R1",
-        "acceptance": "[DZ-MUST:R1] 使用者能在手机和电脑的受支持浏览器中打开“病历不归零·内测版”；老人只需输入本机恢复口令，不需再输入网站访问密码；未由家属或管理员绑定的设备不能使用在线 AI 或备份能力，未解锁本地数据的人不能读取或修改当前设备上的健康资料。"
+        "acceptance": "[DZ-MUST:R1] 使用者只需解锁本机加密资料；保存录音或照片后不弹 AI 发送确认，不检查家属设备绑定，而是直接开始识别。"
       },
       {
-        "id": "R9",
-        "acceptance": "[DZ-MUST:R9] 页面在设备绑定失效时明确提示联系家属且不阻断本地功能，不将旧会话或失败请求显示成本次成功。"
+        "id": "R2",
+        "acceptance": "[DZ-MUST:R2] 文字、录音原件和照片原件可加密保存并重新读取；识别成功后自动生成可核对记录。"
+      },
+      {
+        "id": "R3",
+        "acceptance": "[DZ-MUST:R3] 就诊交接材料能汇总选中记录及原件状态，且可供医生直接查看或打印。"
+      },
+      {
+        "id": "R4",
+        "acceptance": "[DZ-MUST:R4] 页面与前端源码不包含家属绑定提示、设备激活调用或逐次 AI 确认调用；识别失败时保留原件和重试入口。"
       }
     ]
   },
@@ -482,6 +490,52 @@
       "note": "提交 bd4a069 已实现并通过 Python 770、Node 37、TypeScript、设备绑定安全专项和隔离真实浏览器验证。",
       "blocker": null,
       "updated_at": "2026-09-17T11:38:24+00:00"
+    },
+    {
+      "id": "W1C",
+      "title": "收缩为无额外门槛的最小闭环",
+      "required": true,
+      "contract_sha256": "3a6377f04c4a2a3d148539c68110236219974eabef4039ddfacb15dd4e2d449b",
+      "phase": "build",
+      "status": "pending",
+      "acceptance": [
+        "保存文字、录音或照片后可直接读取；媒体自动识别并建立记录；无 AI 确认弹窗、无家属设备绑定阻断或提示；可生成就诊交接材料；自动化与隔离浏览器验证通过。"
+      ],
+      "evidence_ids": [],
+      "note": null,
+      "blocker": null,
+      "updated_at": "2026-09-18T08:23:25+00:00"
+    },
+    {
+      "id": "W1C@ee4ebac1a58c",
+      "title": "收缩为无额外门槛的最小闭环",
+      "required": true,
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "phase": "build",
+      "status": "cancelled",
+      "acceptance": [
+        "覆盖 R1-R4：保存文字、录音或照片后可直接读取；媒体自动识别并建立记录；无 AI 确认弹窗、无家属设备绑定阻断或提示；可生成就诊交接材料；自动化与隔离浏览器验证通过。"
+      ],
+      "evidence_ids": [],
+      "note": "该历史携带项由当前合同下的 W1D 取代，避免重复记账。",
+      "blocker": null,
+      "updated_at": "2026-09-18T08:24:35+00:00",
+      "carried_from": "W1C"
+    },
+    {
+      "id": "W1D",
+      "title": "实现无额外门槛的最小闭环",
+      "required": true,
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "phase": "build",
+      "status": "in_progress",
+      "acceptance": [
+        "保存文字、录音或照片后可直接读取；媒体自动识别并建立记录；无 AI 确认弹窗、无家属设备绑定阻断或提示；可生成就诊交接材料；自动化与隔离浏览器验证通过。覆盖 R1、R2、R3、R4。"
+      ],
+      "evidence_ids": [],
+      "note": "已接受 v4 最小闭环规格与方案，开始修改前后端及验证。",
+      "blocker": null,
+      "updated_at": "2026-09-18T08:24:35+00:00"
     }
   ],
   "evidence": [
@@ -1204,6 +1258,23 @@
       "prevention": "保留前端无第二密码合同测试、令牌/Cookie/来源/CSRF 回归和刷新后单口令真实浏览器验收。",
       "created_at": "2026-09-17T11:13:03+00:00",
       "updated_at": "2026-09-17T11:38:23+00:00"
+    },
+    {
+      "id": "MVP-EXTRA-GATES-20260918",
+      "title": "逐次 AI 确认和家属绑定阻断最小闭环",
+      "kind": "production_feedback",
+      "status": "in_progress",
+      "source": "2026-09-18 项目所有者截图和现场反馈",
+      "expected": "保存录音或照片后直接识别、形成记录并生成医生可读报告",
+      "actual": "当前页面会先弹出 AI 外发确认，然后可因家属设备未绑定而中止识别",
+      "impact": "老人需要额外判断与家属操作，无法完成 MVP 的最短使用路径",
+      "route": "feedback",
+      "work_item_id": "W1D",
+      "evidence_ids": [],
+      "resolution": null,
+      "prevention": null,
+      "created_at": "2026-09-18T08:23:25+00:00",
+      "updated_at": "2026-09-18T08:24:35+00:00"
     }
   ]
 }

@@ -4,9 +4,12 @@ const localMediaJobs=new Map();
 const recognitionBusy=new Set();
 const originalUrls=new Map();
 const mediaStatus=$('mediaStatus');
-function readBlobBytes(source){
+async function readBlobBytes(source){
+  if(typeof FileReader!=='undefined'){
+    try{return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error||new Error('media_read_failed'));reader.readAsArrayBuffer(source)})}catch{}
+  }
   if(typeof source?.arrayBuffer==='function')return source.arrayBuffer();
-  return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error||new Error('media_read_failed'));reader.readAsArrayBuffer(source)});
+  throw new Error('media_read_failed');
 }
 async function retainSelectedFile(source){
   try{
@@ -14,12 +17,7 @@ async function retainSelectedFile(source){
     Object.defineProperty(copy,'name',{value:source.name||'media-original',enumerable:true});
     Object.defineProperty(copy,'lastModified',{value:source.lastModified||Date.now(),enumerable:true});
     return copy;
-  }catch{
-    // Some embedded browsers keep the selected File readable but do not
-    // expose arrayBuffer() until the later upload read. Retain that File
-    // object instead of discarding the user's selection.
-    return source;
-  }
+  }catch{throw new Error('media_read_failed')}
 }
 const MEDIA_SAVE_LABELS={uploading:'原件上传中，尚未保存完整',saved:'原件已保存',failed:'原件保存失败'};
 const MEDIA_RECOGNITION_LABELS={not_started:'待识别',processing:'识别处理中',succeeded:'文字已识别，待核对',failed:'识别失败',interrupted:'识别中断'};
@@ -153,7 +151,7 @@ async function uploadMedia(file,kind){
     }
     const {media}=await mediaRequest(`/api/media/uploads/${job.uploadId}/complete`,{method:'POST',headers:{'Idempotency-Key':job.key+':complete'},body:'{}'});
     if(media.save_status!=='saved')throw new Error('原件尚未确认保存，请重试');
-    mediaMessage('原件已保存。请在看病资料中识别并核对文字');await loadMedia();return media;
+    mediaMessage('原件已保存，正在开始识别');await loadMedia();return media;
   }catch(e){mediaMessage(e.message);toast(e.message);}
   finally{uploadBusy=false;}
 }
@@ -219,8 +217,8 @@ $('photoInput').onchange=async e=>{
   img.src=URL.createObjectURL(selectedPhoto);img.alt='待上传照片预览';img.onload=()=>{URL.revokeObjectURL(img.src);savePhoto.scrollIntoView?.({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'})};preview.append(img);
   const note=document.createElement('p');note.textContent='仅预览，尚未上传或识别';preview.append(note);preview.classList.remove('hidden');savePhoto.classList.remove('hidden');savePhoto.scrollIntoView?.({behavior:'auto',block:'center'});
 };
-$('savePhotoBtn').onclick=async()=>{if(uploadBusy)return;const m=await uploadMedia(selectedPhoto,'image');if(m){showView('archiveView');}};
-$('audioUploadInput').onchange=async e=>{if(mediaCapabilities&&mediaCapabilities.enabled!==true)return;const source=e.target.files?.[0];if(!source)return;let f;try{f=await retainSelectedFile(source)}catch{e.target.value='';mediaMessage('录音原件读取失败，请重新选择');return}e.target.value='';await uploadMedia(f,'audio');showView('archiveView');};
+$('savePhotoBtn').onclick=async()=>{if(uploadBusy)return;const m=await uploadMedia(selectedPhoto,'image');if(m){showView('archiveView');await recognizeMedia(m.media_id);}};
+$('audioUploadInput').onchange=async e=>{if(mediaCapabilities&&mediaCapabilities.enabled!==true)return;const source=e.target.files?.[0];if(!source)return;let f;try{f=await retainSelectedFile(source)}catch{e.target.value='';mediaMessage('录音原件读取失败，请重新选择');return}e.target.value='';const m=await uploadMedia(f,'audio');showView('archiveView');if(m)await recognizeMedia(m.media_id);};
 async function savePendingRecording(){
   if(!pendingRecordingBlob||uploadBusy)return;
   const retry=$('retryVoiceUploadBtn');retry.disabled=true;

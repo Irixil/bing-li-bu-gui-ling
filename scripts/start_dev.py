@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 import subprocess
 import sys
 import time
@@ -14,16 +13,9 @@ from scripts.start_app import ROOT, prepare_app_environment
 def main() -> int:
     env, _generated_secret = prepare_app_environment(ROOT, environ=dict(os.environ))
     env.setdefault("BINGLI_API_BASE_URL", f"http://127.0.0.1:{env['API_PORT']}")
-    env.setdefault("APP_AUTO_BIND_LOOPBACK", "true")
-    generated_password = not (
-        env.get("APP_OWNER_PASSWORD", "").strip() or env.get("APP_OWNER_PASSWORD_SHA256", "").strip()
-    )
-    if generated_password:
-        env["APP_OWNER_PASSWORD"] = secrets.token_urlsafe(15)
-
     print(f"请打开前端页面：http://127.0.0.1:{env['FRONTEND_PORT']}/", flush=True)
     print(f"后端 API：http://127.0.0.1:{env['API_PORT']}/（无需手动打开）", flush=True)
-    print("本机开发会自动绑定在线能力；老人端不会再要求输入网站密码。", flush=True)
+    print("保存录音或照片后会直接识别；使用者只需本机恢复口令。", flush=True)
 
     processes = [
         subprocess.Popen([sys.executable, "-m", "scripts.start_backend"], cwd=ROOT, env=env),

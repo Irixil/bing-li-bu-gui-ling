@@ -66,12 +66,19 @@ test('splash is dismissible, session-scoped and reduced-motion aware', () => {
   assert.match(splash, /setTimeout\(closeSplash/);
 });
 
-test('elder flow uses family device binding without a second password prompt', () => {
-  const shipped = `${markup}\n${localStore}`;
+test('minimal loop has no AI confirmation or family device-binding gate', () => {
+  const shipped = `${markup}\n${app}\n${localStore}`;
   assert.doesNotMatch(shipped, /cloudPassword|cloudLoginForm|网站访问密码|\/api\/app\/login/);
-  assert.match(localStore, /\/api\/app\/device\/activate/);
-  assert.match(localStore, /family_device_binding_required/);
-  assert.match(localStore, /history\.replaceState/);
-  assert.match(markup, /老人不需要输入网站密码/);
-  assert.match(markup, /本机记录始终可以继续使用/);
+  assert.doesNotMatch(shipped, /\/api\/app\/device\/activate|\/api\/app\/session|family_device_binding_required|ensureAiConsent|bingli:online-status/);
+  assert.doesNotMatch(shipped, /在线识别尚未由家属开通|请让家属用绑定链接/);
+  assert.doesNotMatch(localStore, /本次会把选中.*是否继续/);
+  assert.match(localStore, /event_link:\s*\{ record_id: created\.j\.event\.record_id \}/);
+  assert.match(markup, />保存并识别</);
+  assert.doesNotMatch(markup, /id="onlineAccessStatus"|id="uploadCloudBackupBtn"|id="refreshCloudBackupsBtn"/);
+});
+
+test('photo and uploaded audio start recognition immediately after the original is saved', () => {
+  const media = read('media.js');
+  assert.match(media, /savePhotoBtn[\s\S]*?uploadMedia\(selectedPhoto,'image'\)[\s\S]*?recognizeMedia\(m\.media_id\)/);
+  assert.match(media, /audioUploadInput[\s\S]*?uploadMedia\(f,'audio'\)[\s\S]*?recognizeMedia\(m\.media_id\)/);
 });

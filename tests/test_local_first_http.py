@@ -136,27 +136,23 @@ def test_loopback_development_can_bind_silently_but_production_default_cannot(mo
         assert no_origin.body == {"ok": True, "authenticated": False}
 
 
-def test_owner_login_protects_stateless_ai_and_does_not_write_cloud_database(monkeypatch, tmp_path):
+def test_allowed_frontend_uses_stateless_ai_without_session_or_consent(monkeypatch, tmp_path):
     configure(monkeypatch, tmp_path)
+    origin = "http://127.0.0.1:5173"
     with running_http_server(server.Handler) as base_url:
-        client = HttpClient(base_url, {"Content-Type": "application/json"})
-        denied = client.request("POST", "/api/ai/organize", {})
+        no_origin = HttpClient(base_url, {"Content-Type": "application/json"})
+        denied = no_origin.request("POST", "/api/ai/organize", {})
         assert denied.status == 403
 
-        wrong = client.request("POST", "/api/app/login", {"password": "wrong"})
-        assert wrong.status == 401
-        cookie, csrf = login(client)
-        headers = {"Cookie": cookie, "X-CSRF-Token": csrf}
-
-        no_consent = client.request(
+        untrusted = HttpClient(base_url, {"Content-Type": "application/json", "Origin": "https://untrusted.example"})
+        rejected = untrusted.request(
             "POST",
             "/api/ai/organize",
-            {"record_id": "rec_12345678", "raw_text": "今天头晕", "consent": False},
-            headers=headers,
+            {"record_id": "rec_12345678", "raw_text": "今天头晕"},
         )
-        assert no_consent.status == 400
-        assert no_consent.body["error"] == "ai_consent_required"
+        assert rejected.status == 403
 
+        client = HttpClient(base_url, {"Content-Type": "application/json", "Origin": origin})
         organized = client.request(
             "POST",
             "/api/ai/organize",
@@ -166,19 +162,12 @@ def test_owner_login_protects_stateless_ai_and_does_not_write_cloud_database(mon
                 "source_kind": "elder",
                 "recorded_at": "2026-09-16T10:00:00+00:00",
                 "history": [],
-                "consent": True,
             },
-            headers=headers,
         )
         assert organized.status == 200
         assert organized.body["raw_text_preserved_on_device"] is True
         assert organized.body["output"]["review_required"] is True
         assert server.STORE.list() == []
-
-        session = client.request("GET", "/api/app/session", headers={"Cookie": cookie})
-        assert session.body["authenticated"] is True
-        assert session.body["csrf_token"] == csrf
-
 
 def test_local_first_fails_closed_when_access_secret_is_missing(monkeypatch, tmp_path):
     configure(monkeypatch, tmp_path)
@@ -190,6 +179,13 @@ def test_local_first_fails_closed_when_access_secret_is_missing(monkeypatch, tmp
         login_attempt = client.request("POST", "/api/app/login", {"password": "a sufficiently long password"})
         assert login_attempt.status == 503
         assert login_attempt.body["error"] == "access_not_configured"
+        direct_ai = client.request(
+            "POST",
+            "/api/ai/organize",
+            {"record_id": "rec_12345678", "raw_text": "今天头晕", "history": []},
+            headers={"Origin": "http://127.0.0.1:5173"},
+        )
+        assert direct_ai.status == 200
 
 
 def test_media_recognition_uses_a_temporary_original_and_returns_only_the_draft(monkeypatch, tmp_path):
@@ -203,8 +199,7 @@ def test_media_recognition_uses_a_temporary_original_and_returns_only_the_draft(
 
     monkeypatch.setattr(server, "recognize_file", recognize)
     with running_http_server(server.Handler) as base_url:
-        client = HttpClient(base_url, {"Content-Type": "application/json"})
-        cookie, csrf = login(client)
+        client = HttpClient(base_url, {"Content-Type": "application/json", "Origin": "http://127.0.0.1:5173"})
         body, content_type = multipart(
             {"kind": "image", "content_type": "image/png", "attempt_id": "attempt_test"},
             [("file", "report.png", "image/png", PNG)],
@@ -213,7 +208,7 @@ def test_media_recognition_uses_a_temporary_original_and_returns_only_the_draft(
             "POST",
             "/api/ai/media/recognize",
             raw_body=body,
-            headers={"Cookie": cookie, "X-CSRF-Token": csrf, "Content-Type": content_type},
+            headers={"Content-Type": content_type},
         )
         assert response.status == 200
         assert response.body["recognition"]["text"] == "照片上的文字"

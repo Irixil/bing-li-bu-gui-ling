@@ -141,7 +141,6 @@ def local_first_model_evidence(body):
  raw=body.get('raw_text')
  if not isinstance(raw,str) or not raw.strip():raise StoreError('raw_text_required')
  if len(raw)>10000:raise StoreError('raw_text_too_long')
- if body.get('consent') is not True:raise StoreError('ai_consent_required')
  record_id=body.get('record_id')
  if not isinstance(record_id,str) or not re.fullmatch(r'rec_[A-Za-z0-9_-]{8,100}',record_id):raise StoreError('record_id_invalid')
  source_kind=body.get('source_kind','elder')
@@ -230,8 +229,10 @@ class Handler(BaseHTTPRequestHandler):
   path=urlparse(self.path).path
   if app_access.local_first_enabled():
    if not self.origin_allowed():return False
+   if path.startswith('/api/ai/'):
+    return bool(self.headers.get('Origin')) and bool(_allowed_origin())
    if path in {'/api/app/login','/api/app/device/activate'}:return True
-   if path=='/api/app/logout' or path.startswith('/api/ai/') or path.startswith('/api/backups/'):
+   if path=='/api/app/logout' or path.startswith('/api/backups/'):
     return app_access.request_authorized(self.headers.get('Cookie'),self.headers.get('X-CSRF-Token'),write=True) is not None
    return False
   if path in ('/api/auth/households','/api/auth/login'): return True
