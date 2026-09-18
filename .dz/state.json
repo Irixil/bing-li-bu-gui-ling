@@ -7,7 +7,7 @@
   },
   "run": {
     "status": "active",
-    "product_verdict": "implemented_unverified",
+    "product_verdict": "partially_verified",
     "stage": "plan_accepted",
     "next_action": "实现 W1C：删除前端 AI 确认和家属绑定依赖，连通保存、自动识别、自动建记录和就诊报告，然后全量与浏览器验证。",
     "waiting_for": null,
@@ -17,7 +17,7 @@
     "blocker_kind": null,
     "resume_when": null,
     "finish_reason": null,
-    "updated_at": "2026-09-18T08:24:35+00:00"
+    "updated_at": "2026-09-18T12:25:41+00:00"
   },
   "decisions": {
     "intent": {
@@ -55,14 +55,14 @@
     }
   },
   "target": {
-    "id": null,
-    "contract_sha256": null,
-    "revision": null,
-    "environment": null,
-    "source": null,
-    "artifact_path": null,
-    "artifact_sha256": null,
-    "set_at": null
+    "id": "f92174d544e5466905a3f4f9e9e8e1604a96980ac9de843c961dd2b37fc95848",
+    "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+    "revision": "8ba7033",
+    "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated Mock browser 5174/18769; Python 770; Node 38; TypeScript passed",
+    "source": "git commit 8ba7033; full automated checks and isolated browser minimal loop passed",
+    "artifact_path": "docs/evidence/minimal-loop-browser-2026-09-18.md",
+    "artifact_sha256": "8645b8345411e32c3128f4b3b4fa17f47c5f642156ac6876ec81849402115e09",
+    "set_at": "2026-09-18T12:24:03+00:00"
   },
   "requirements": {
     "spec_sha256": "020266875cf73cf83ceb07cc314ba27f665d34b8ec89415a0f6874bab7311978",
@@ -528,14 +528,39 @@
       "required": true,
       "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
       "phase": "build",
-      "status": "in_progress",
+      "status": "cancelled",
       "acceptance": [
         "保存文字、录音或照片后可直接读取；媒体自动识别并建立记录；无 AI 确认弹窗、无家属设备绑定阻断或提示；可生成就诊交接材料；自动化与隔离浏览器验证通过。覆盖 R1、R2、R3、R4。"
       ],
-      "evidence_ids": [],
-      "note": "已接受 v4 最小闭环规格与方案，开始修改前后端及验证。",
+      "evidence_ids": [
+        "E-W1D-MINIMAL-LOOP-8BA7033"
+      ],
+      "note": "由 W1E 的四项精确 R1-R4 验收及证据取代，避免重复工作项。",
       "blocker": null,
-      "updated_at": "2026-09-18T08:24:35+00:00"
+      "updated_at": "2026-09-18T12:25:41+00:00"
+    },
+    {
+      "id": "W1E",
+      "title": "验收最小闭环所有必须结果",
+      "required": true,
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "phase": "test",
+      "status": "verified",
+      "acceptance": [
+        "[DZ-MUST:R1] 使用者只需解锁本机加密资料；保存录音或照片后不弹 AI 发送确认，不检查家属设备绑定，而是直接开始识别。",
+        "[DZ-MUST:R2] 文字、录音原件和照片原件可加密保存并重新读取；识别成功后自动生成可核对记录。",
+        "[DZ-MUST:R3] 就诊交接材料能汇总选中记录及原件状态，且可供医生直接查看或打印。",
+        "[DZ-MUST:R4] 页面与前端源码不包含家属绑定提示、设备激活调用或逐次 AI 确认调用；识别失败时保留原件和重试入口。"
+      ],
+      "evidence_ids": [
+        "E-W1E-R1-8BA7033",
+        "E-W1E-R2-8BA7033",
+        "E-W1E-R3-8BA7033",
+        "E-W1E-R4-8BA7033"
+      ],
+      "note": "R1-R4 均已在提交 8ba7033 的同一目标上通过自动化与隔离浏览器验收。",
+      "blocker": null,
+      "updated_at": "2026-09-18T12:24:04+00:00"
     }
   ],
   "evidence": [
@@ -844,6 +869,91 @@
       "result": "passed",
       "resolves": [],
       "recorded_at": "2026-09-17T11:38:24+00:00"
+    },
+    {
+      "id": "E-W1D-MINIMAL-LOOP-8BA7033",
+      "work_item_id": "W1D",
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "target_id": "7b84f896c8e986fcf192e486903afe91644e4e2630b6336b2bcaa6de8f10b53e",
+      "acceptance": "保存文字、录音或照片后可直接读取；媒体自动识别并建立记录；无 AI 确认弹窗、无家属设备绑定阻断或提示；可生成就诊交接材料；自动化与隔离浏览器验证通过。覆盖 R1、R2、R3、R4。",
+      "kind": "automated-and-browser-verification",
+      "claim": "提交 8ba7033 已移除前端 AI 确认与家属绑定依赖，媒体保存后自动识别并建立记录；Python 770、Node 38、TypeScript 通过，隔离浏览器生成就诊交接材料。",
+      "source": "git commit 8ba7033; full Python/Node/TypeScript checks; isolated ego-browser Mock flow",
+      "artifact_path": "docs/evidence/minimal-loop-browser-2026-09-18.md",
+      "artifact_sha256": "8645b8345411e32c3128f4b3b4fa17f47c5f642156ac6876ec81849402115e09",
+      "revision": "8ba7033",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated Mock browser 5174/18769; Python 770; Node 38; TypeScript passed",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-18T08:52:37+00:00"
+    },
+    {
+      "id": "E-W1E-R1-8BA7033",
+      "work_item_id": "W1E",
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "target_id": "f92174d544e5466905a3f4f9e9e8e1604a96980ac9de843c961dd2b37fc95848",
+      "acceptance": "[DZ-MUST:R1] 使用者只需解锁本机加密资料；保存录音或照片后不弹 AI 发送确认，不检查家属设备绑定，而是直接开始识别。",
+      "kind": "browser",
+      "claim": "隔离浏览器只输入本机恢复口令，点击保存并识别时 confirm 调用为 0，无家属绑定，自动启动识别。",
+      "source": "isolated ego-browser Mock flow and frontend contract tests",
+      "artifact_path": "docs/evidence/minimal-loop-browser-2026-09-18.md",
+      "artifact_sha256": "8645b8345411e32c3128f4b3b4fa17f47c5f642156ac6876ec81849402115e09",
+      "revision": "8ba7033",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated Mock browser 5174/18769; Python 770; Node 38; TypeScript passed",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-18T12:24:03+00:00"
+    },
+    {
+      "id": "E-W1E-R2-8BA7033",
+      "work_item_id": "W1E",
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "target_id": "f92174d544e5466905a3f4f9e9e8e1604a96980ac9de843c961dd2b37fc95848",
+      "acceptance": "[DZ-MUST:R2] 文字、录音原件和照片原件可加密保存并重新读取；识别成功后自动生成可核对记录。",
+      "kind": "automated-and-browser",
+      "claim": "本地加密与媒体回归通过；隔离浏览器保存 1 张原图，识别后自动建立 1 条已关联记录并可读取。",
+      "source": "full automated checks and isolated ego-browser Mock flow",
+      "artifact_path": "docs/evidence/minimal-loop-browser-2026-09-18.md",
+      "artifact_sha256": "8645b8345411e32c3128f4b3b4fa17f47c5f642156ac6876ec81849402115e09",
+      "revision": "8ba7033",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated Mock browser 5174/18769; Python 770; Node 38; TypeScript passed",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-18T12:24:03+00:00"
+    },
+    {
+      "id": "E-W1E-R3-8BA7033",
+      "work_item_id": "W1E",
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "target_id": "f92174d544e5466905a3f4f9e9e8e1604a96980ac9de843c961dd2b37fc95848",
+      "acceptance": "[DZ-MUST:R3] 就诊交接材料能汇总选中记录及原件状态，且可供医生直接查看或打印。",
+      "kind": "browser",
+      "claim": "隔离浏览器生成的就诊交接材料包含识别原文、原件保存/识别/关联状态和打印入口。",
+      "source": "isolated ego-browser Mock flow",
+      "artifact_path": "docs/evidence/minimal-loop-browser-2026-09-18.md",
+      "artifact_sha256": "8645b8345411e32c3128f4b3b4fa17f47c5f642156ac6876ec81849402115e09",
+      "revision": "8ba7033",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated Mock browser 5174/18769; Python 770; Node 38; TypeScript passed",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-18T12:24:04+00:00"
+    },
+    {
+      "id": "E-W1E-R4-8BA7033",
+      "work_item_id": "W1E",
+      "contract_sha256": "ee4ebac1a58c2cc158b385a683214fcb097c3020fe30f825202a74a2f2ed06c3",
+      "target_id": "f92174d544e5466905a3f4f9e9e8e1604a96980ac9de843c961dd2b37fc95848",
+      "acceptance": "[DZ-MUST:R4] 页面与前端源码不包含家属绑定提示、设备激活调用或逐次 AI 确认调用；识别失败时保留原件和重试入口。",
+      "kind": "automated-and-browser",
+      "claim": "前端合同测试和源码扫描确认无设备激活、家属绑定和 AI 确认流程；失败分支保留原件与可重试状态。",
+      "source": "Node 38, source scan, isolated ego-browser Mock flow",
+      "artifact_path": "docs/evidence/minimal-loop-browser-2026-09-18.md",
+      "artifact_sha256": "8645b8345411e32c3128f4b3b4fa17f47c5f642156ac6876ec81849402115e09",
+      "revision": "8ba7033",
+      "environment": "local macOS; frontend 127.0.0.1:5173 + backend 127.0.0.1:18768; isolated Mock browser 5174/18769; Python 770; Node 38; TypeScript passed",
+      "result": "passed",
+      "resolves": [],
+      "recorded_at": "2026-09-18T12:24:04+00:00"
     }
   ],
   "risks": [
@@ -1263,18 +1373,20 @@
       "id": "MVP-EXTRA-GATES-20260918",
       "title": "逐次 AI 确认和家属绑定阻断最小闭环",
       "kind": "production_feedback",
-      "status": "in_progress",
+      "status": "verified",
       "source": "2026-09-18 项目所有者截图和现场反馈",
       "expected": "保存录音或照片后直接识别、形成记录并生成医生可读报告",
       "actual": "当前页面会先弹出 AI 外发确认，然后可因家属设备未绑定而中止识别",
       "impact": "老人需要额外判断与家属操作，无法完成 MVP 的最短使用路径",
       "route": "feedback",
-      "work_item_id": "W1D",
-      "evidence_ids": [],
-      "resolution": null,
-      "prevention": null,
+      "work_item_id": "W1E",
+      "evidence_ids": [
+        "E-W1E-R1-8BA7033"
+      ],
+      "resolution": "已删除前端逐次 AI 确认和家属设备绑定流程；保存媒体后自动识别、自动建记录并可生成就诊材料。",
+      "prevention": "保留前端无绑定/无 AI 弹窗合同测试、自动识别回归和隔离浏览器闭环验收。",
       "created_at": "2026-09-18T08:23:25+00:00",
-      "updated_at": "2026-09-18T08:24:35+00:00"
+      "updated_at": "2026-09-18T12:25:41+00:00"
     }
   ]
 }
